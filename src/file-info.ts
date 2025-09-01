@@ -111,7 +111,7 @@ function buildDescription(tags: Tags, fields: string[]): string | null {
 }
 
 /**
- * 获取任意文件描述信息
+ * 获取任意文件描述信息（供外部调用）
  */
 export async function getFileDescription(filePath: string): Promise<string> {
   const fileName = path.basename(filePath);
@@ -129,7 +129,6 @@ export async function getFileDescription(filePath: string): Promise<string> {
 
     return description;
   } catch (err) {
-    console.error(err);
     logger.error({ file: fileName, error: err }, "读取文件信息失败");
     return "";
   }

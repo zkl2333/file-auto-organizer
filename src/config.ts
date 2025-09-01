@@ -24,6 +24,13 @@ interface ConfigFile {
 		max_depth: number;
 		similarity_threshold: number;
 	};
+	ai: {
+		batch_size: number;
+	};
+	file_operations: {
+		max_retries: number;
+		retry_delay_base: number;
+	};
 }
 
 // 默认配置
@@ -47,6 +54,13 @@ const defaultConfig: ConfigFile = {
 	scan: {
 		max_depth: 3,
 		similarity_threshold: 0.65,
+	},
+	ai: {
+		batch_size: 5,
+	},
+	file_operations: {
+		max_retries: 3,
+		retry_delay_base: 1000,
 	},
 };
 
@@ -91,6 +105,12 @@ function mergeConfig(defaultConfig: ConfigFile, loadedConfig: Partial<ConfigFile
 	if (loadedConfig.scan) {
 		merged.scan = { ...merged.scan, ...loadedConfig.scan };
 	}
+	if (loadedConfig.ai) {
+		merged.ai = { ...merged.ai, ...loadedConfig.ai };
+	}
+	if (loadedConfig.file_operations) {
+		merged.file_operations = { ...merged.file_operations, ...loadedConfig.file_operations };
+	}
 	
 	return merged;
 }
@@ -115,6 +135,9 @@ export const config = {
 	LOG_FILE: loadedConfig.logging.file,
 	MAX_SCAN_DEPTH: loadedConfig.scan.max_depth,
 	SIMILARITY_THRESHOLD: loadedConfig.scan.similarity_threshold,
+	AI_BATCH_SIZE: loadedConfig.ai.batch_size,
+	FILE_MAX_RETRIES: loadedConfig.file_operations.max_retries,
+	FILE_RETRY_DELAY_BASE: loadedConfig.file_operations.retry_delay_base,
 	DRY_RUN: hasArg("--dry-run"),
 	RUN_ONCE: hasArg("--once"),
 } as const;

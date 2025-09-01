@@ -27,3 +27,7 @@ logging:
 scan:
   max_depth: 3  # 最大扫描深度
   similarity_threshold: 0.65  # 相似度阈值 (0.0-1.0)
+
+# AI 配置
+ai:
+  batch_size: 5  # AI批量处理文件数量，建议5个以内避免AI出错
