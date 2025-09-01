@@ -1,4 +1,10 @@
-FROM node:20-alpine
+FROM node:22-alpine
+
+# 设置时区环境变量
+ENV TZ=Asia/Shanghai
+
+# 安装时区数据
+RUN apk add --no-cache tzdata
 
 WORKDIR /app
 
