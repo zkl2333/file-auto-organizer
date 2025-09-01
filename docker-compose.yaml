@@ -2,7 +2,7 @@ version: "3.9"
 
 services:
   file-classifier:
-    build: .
+    image: docker.io/zkl2333/file-auto-organizer:latest
     container_name: file-classifier
     restart: unless-stopped
     volumes:
