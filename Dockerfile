@@ -3,8 +3,8 @@ FROM node:22-alpine
 # 设置时区环境变量
 ENV TZ=Asia/Shanghai
 
-# 安装时区数据
-RUN apk add --no-cache tzdata
+# 安装时区数据和Perl（exiftool-vendored依赖）
+RUN apk add --no-cache tzdata perl
 
 WORKDIR /app
 
