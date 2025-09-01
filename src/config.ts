@@ -1,42 +1,120 @@
-import dotenv from "dotenv";
+import fs from "fs";
+import path from "path";
+import yaml from "js-yaml";
 
-dotenv.config();
-
-function readString(name: string, defaultValue: string = ""): string {
-	const value = process.env[name];
-	return typeof value === "string" && value.length > 0 ? value : defaultValue;
+// 配置文件接口定义
+interface ConfigFile {
+	openai: {
+		api_key: string;
+		model: string;
+		base_url: string;
+	};
+	directories: {
+		root_dir: string;
+		incoming_dir: string;
+	};
+	cron: {
+		schedule: string;
+	};
+	logging: {
+		level: string;
+		file: string;
+	};
+	scan: {
+		max_depth: number;
+		similarity_threshold: number;
+	};
 }
 
-function readNumber(name: string, defaultValue: number, opts?: { min?: number; max?: number; allowFloat?: boolean }): number {
-	const raw = process.env[name];
-	const parsed = raw !== undefined ? Number(raw) : defaultValue;
-	if (!Number.isFinite(parsed)) return defaultValue;
-	let n = parsed;
-	if (!opts?.allowFloat) n = Math.floor(n);
-	if (opts?.min !== undefined && n < opts.min) n = opts.min;
-	if (opts?.max !== undefined && n > opts.max) n = opts.max;
-	return n;
+// 默认配置
+const defaultConfig: ConfigFile = {
+	openai: {
+		api_key: "",
+		model: "gpt-4o-mini",
+		base_url: "",
+	},
+	directories: {
+		root_dir: "./分类库",
+		incoming_dir: "./待分类",
+	},
+	cron: {
+		schedule: "0 * * * *",
+	},
+	logging: {
+		level: "info",
+		file: "./logs/app.log",
+	},
+	scan: {
+		max_depth: 3,
+		similarity_threshold: 0.65,
+	},
+};
+
+// 加载配置文件
+function loadConfig(): ConfigFile {
+	const configPath = path.resolve(process.cwd(), "config.yaml");
+	
+	try {
+		if (fs.existsSync(configPath)) {
+			const fileContent = fs.readFileSync(configPath, "utf8");
+			const loadedConfig = yaml.load(fileContent) as ConfigFile;
+			
+			// 合并默认配置和加载的配置
+			return mergeConfig(defaultConfig, loadedConfig);
+		} else {
+			console.warn(`配置文件 ${configPath} 不存在，使用默认配置`);
+			return defaultConfig;
+		}
+	} catch (error) {
+		console.error(`加载配置文件失败: ${error}`);
+		console.warn("使用默认配置");
+		return defaultConfig;
+	}
 }
 
+// 深度合并配置
+function mergeConfig(defaultConfig: ConfigFile, loadedConfig: Partial<ConfigFile>): ConfigFile {
+	const merged = { ...defaultConfig };
+	
+	if (loadedConfig.openai) {
+		merged.openai = { ...merged.openai, ...loadedConfig.openai };
+	}
+	if (loadedConfig.directories) {
+		merged.directories = { ...merged.directories, ...loadedConfig.directories };
+	}
+	if (loadedConfig.cron) {
+		merged.cron = { ...merged.cron, ...loadedConfig.cron };
+	}
+	if (loadedConfig.logging) {
+		merged.logging = { ...merged.logging, ...loadedConfig.logging };
+	}
+	if (loadedConfig.scan) {
+		merged.scan = { ...merged.scan, ...loadedConfig.scan };
+	}
+	
+	return merged;
+}
+
+// 检查命令行参数
 function hasArg(flag: string): boolean {
 	return process.argv.includes(flag);
 }
 
+// 加载配置
+const loadedConfig = loadConfig();
+
+// 导出配置对象（保持原有接口兼容性）
 export const config = {
-	OPENAI_API_KEY: readString("OPENAI_API_KEY", ""),
-	OPENAI_MODEL: readString("OPENAI_MODEL", "gpt-4o-mini"),
-	OPENAI_BASE_URL: readString("OPENAI_BASE_URL", ""),
-	ROOT_DIR: readString("ROOT_DIR", "./分类库"),
-	INCOMING_DIR: readString("INCOMING_DIR", "./待分类"),
-	CRON_SCHEDULE: readString("CRON_SCHEDULE", "0 * * * *"),
-	LOG_LEVEL: readString("LOG_LEVEL", "info"),
-	LOG_FILE: readString("LOG_FILE", "./logs/app.log"),
-	MAX_SCAN_DEPTH: readNumber("MAX_SCAN_DEPTH", 3, { min: 0 }),
-	SIMILARITY_THRESHOLD: (() => {
-		const raw = process.env.SIMILARITY_THRESHOLD;
-		const num = raw !== undefined ? Number(raw) : 0.65;
-		return Number.isFinite(num) ? num : 0.65;
-	})(),
+	OPENAI_API_KEY: loadedConfig.openai.api_key,
+	OPENAI_MODEL: loadedConfig.openai.model,
+	OPENAI_BASE_URL: loadedConfig.openai.base_url,
+	ROOT_DIR: loadedConfig.directories.root_dir,
+	INCOMING_DIR: loadedConfig.directories.incoming_dir,
+	CRON_SCHEDULE: loadedConfig.cron.schedule,
+	LOG_LEVEL: loadedConfig.logging.level,
+	LOG_FILE: loadedConfig.logging.file,
+	MAX_SCAN_DEPTH: loadedConfig.scan.max_depth,
+	SIMILARITY_THRESHOLD: loadedConfig.scan.similarity_threshold,
 	DRY_RUN: hasArg("--dry-run"),
 	RUN_ONCE: hasArg("--once"),
 } as const;

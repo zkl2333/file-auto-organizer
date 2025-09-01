@@ -2,9 +2,6 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-# 安装 exiftool
-RUN apk add --no-cache perl-image-exiftool
-
 # 仅复制包管理文件并安装依赖（包含 dev，用于构建）
 COPY package*.json ./
 RUN npm install

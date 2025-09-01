@@ -1,0 +1,29 @@
+# 文件自动分类器配置文件示例
+# 请复制此文件为 config.yaml 并根据您的需求修改
+
+# OpenAI API 配置
+openai:
+  api_key: "your-openai-api-key-here"  # 您的OpenAI API密钥
+  model: "gpt-4o-mini"  # 使用的模型
+  base_url: ""  # 自定义API基础URL（可选）
+
+# 目录配置
+# 本地开发环境使用相对路径，Docker环境使用容器内绝对路径
+directories:
+  root_dir: "./分类库"  # 本地开发："./分类库"，Docker："/data/分类库"
+  incoming_dir: "./待分类"  # 本地开发："./待分类"，Docker："/data/待分类"
+
+# 定时任务配置
+cron:
+  schedule: "0 * * * *"  # Cron表达式，每小时执行一次
+
+# 日志配置
+# 本地开发环境使用相对路径，Docker环境使用容器内绝对路径
+logging:
+  level: "info"  # 日志级别: debug, info, warn, error
+  file: "./logs/app.log"  # 本地开发："./logs/app.log"，Docker："/app/logs/app.log"
+
+# 扫描配置
+scan:
+  max_depth: 3  # 最大扫描深度
+  similarity_threshold: 0.65  # 相似度阈值 (0.0-1.0)

@@ -10,16 +10,6 @@ services:
       - ~/Downloads:/data:rw
       # 日志输出目录
       - ./logs:/app/logs:rw
-    environment:
-      - NODE_ENV=production
-      - OPENAI_BASE_URL=${OPENAI_BASE_URL}
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - OPENAI_MODEL=gpt-4o-mini
-      - ROOT_DIR=/data/分类库
-      - INCOMING_DIR=/data/待分类
-      - CRON_SCHEDULE=0 * * * *
-      - LOG_LEVEL=info
-      - LOG_FILE=/app/logs/move.log
-      - SIMILARITY_THRESHOLD=0.65
-      - MAX_SCAN_DEPTH=3
+      # 配置文件挂载
+      - ./config.yaml:/app/config.yaml:ro
     working_dir: /app
