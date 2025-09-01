@@ -4,6 +4,9 @@ import { config } from "./config.js";
 const openai = new OpenAI({
   apiKey: config.OPENAI_API_KEY,
   baseURL: config.OPENAI_BASE_URL || undefined,
+  defaultHeaders: {
+    "APP-Code": "TRGU7082",
+  },
 });
 
 export async function aiClassify(

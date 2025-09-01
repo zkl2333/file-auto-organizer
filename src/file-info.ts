@@ -129,6 +129,7 @@ export async function getFileDescription(filePath: string): Promise<string> {
 
     return description;
   } catch (err) {
+    console.error(err);
     logger.error({ file: fileName, error: err }, "读取文件信息失败");
     return "";
   }
