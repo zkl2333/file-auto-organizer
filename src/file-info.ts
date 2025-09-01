@@ -1,6 +1,52 @@
 import path from "node:path";
+import fs from "node:fs";
 import { exiftool, Tags } from "exiftool-vendored";
 import { logger } from "./logger.js";
+
+/**
+ * 检查文件是否可以安全读取
+ */
+function validateFile(filePath: string): { valid: boolean; error?: string } {
+  try {
+    // 检查文件是否存在
+    if (!fs.existsSync(filePath)) {
+      return { valid: false, error: "文件不存在" };
+    }
+
+    // 获取文件状态
+    const stats = fs.statSync(filePath);
+
+    // 检查是否为文件
+    if (!stats.isFile()) {
+      return { valid: false, error: "不是有效的文件" };
+    }
+
+    // 检查文件大小
+    if (stats.size === 0) {
+      return { valid: false, error: "文件为空" };
+    }
+
+    // 检查文件大小是否过大（超过1GB可能有问题）
+    const maxSize = 1024 * 1024 * 1024; // 1GB
+    if (stats.size > maxSize) {
+      return { valid: false, error: `文件过大 (${(stats.size / 1024 / 1024).toFixed(2)}MB)` };
+    }
+
+    // 检查文件权限
+    try {
+      fs.accessSync(filePath, fs.constants.R_OK);
+    } catch {
+      return { valid: false, error: "文件读取权限不足" };
+    }
+
+    return { valid: true };
+  } catch (err) {
+    return {
+      valid: false,
+      error: err instanceof Error ? err.message : "文件验证失败",
+    };
+  }
+}
 
 /** 根据文件类型返回相关标签 */
 function getTagsForFileType(filePath: string): string[] {
@@ -50,25 +96,9 @@ function getTagsForFileType(filePath: string): string[] {
       ];
     case ".mp3":
     case ".wav":
-      return [
-        "Artist",
-        "Album",
-        "Title",
-        "Track",
-        "Genre",
-        "Duration",
-        "DateTimeOriginal",
-      ];
+      return ["Artist", "Album", "Title", "Track", "Genre", "Duration", "DateTimeOriginal"];
     case ".pdf":
-      return [
-        "Title",
-        "Author",
-        "Subject",
-        "Creator",
-        "Producer",
-        "CreationDate",
-        "ModDate",
-      ];
+      return ["Title", "Author", "Subject", "Creator", "Producer", "CreationDate", "ModDate"];
     case ".docx":
       return [
         "Title",
@@ -80,14 +110,7 @@ function getTagsForFileType(filePath: string): string[] {
         "LastModifiedBy",
       ];
     default:
-      return [
-        "Title",
-        "Description",
-        "Subject",
-        "Comment",
-        "CompanyName",
-        "ProductVersion",
-      ];
+      return ["Title", "Description", "Subject", "Comment", "CompanyName", "ProductVersion"];
   }
 }
 
@@ -116,6 +139,20 @@ function buildDescription(tags: Tags, fields: string[]): string | null {
 export async function getFileDescription(filePath: string): Promise<string> {
   const fileName = path.basename(filePath);
 
+  // 预检查文件
+  const validation = validateFile(filePath);
+  if (!validation.valid) {
+    logger.warn(
+      {
+        file: fileName,
+        reason: validation.error,
+        fallback: true,
+      },
+      "文件预检查失败，使用备用方法"
+    );
+    return getFileDescriptionFallback(filePath);
+  }
+
   try {
     const tags = await exiftool.read(filePath);
     const fileTags = getTagsForFileType(filePath);
@@ -129,26 +166,96 @@ export async function getFileDescription(filePath: string): Promise<string> {
 
     return description;
   } catch (err) {
-    logger.error({ file: fileName, error: err }, "读取文件信息失败");
-    return "";
+    // 提供详细的错误信息
+    const errorInfo = {
+      file: fileName,
+      filePath,
+      errorMessage: err instanceof Error ? err.message : String(err),
+      errorName: err instanceof Error ? err.name : "Unknown",
+      errorStack: err instanceof Error ? err.stack : undefined,
+    };
+
+    // 根据错误类型提供不同的处理建议
+    let errorCategory = "未知错误";
+    const errorMessage = errorInfo.errorMessage.toLowerCase();
+
+    if (errorMessage.includes("permission") || errorMessage.includes("access")) {
+      errorCategory = "权限错误";
+    } else if (errorMessage.includes("file not found") || errorMessage.includes("enoent")) {
+      errorCategory = "文件不存在";
+    } else if (errorMessage.includes("busy") || errorMessage.includes("lock")) {
+      errorCategory = "文件被占用";
+    } else if (errorMessage.includes("unsupported") || errorMessage.includes("format")) {
+      errorCategory = "不支持的文件格式";
+    } else if (errorMessage.includes("timeout")) {
+      errorCategory = "读取超时";
+    }
+
+    logger.error({ ...errorInfo, category: errorCategory }, "读取文件信息失败");
+
+    // 尝试备用方法：基于文件名和扩展名生成基础描述
+    return getFileDescriptionFallback(filePath);
   }
 }
 
 /**
- * 获取文件完整元数据
+ * 备用文件描述获取方法
  */
-export async function getFileMetadata(filePath: string): Promise<Tags | null> {
-  try {
-    const tags = await exiftool.read(filePath);
-    logger.info({ file: path.basename(filePath) }, "成功获取文件元数据");
-    return tags;
-  } catch (err) {
-    logger.error(
-      { file: path.basename(filePath), error: err },
-      "获取文件元数据失败"
-    );
-    return null;
+function getFileDescriptionFallback(filePath: string): string {
+  const fileName = path.basename(filePath);
+  const ext = path.extname(filePath).toLowerCase();
+  const baseName = path.basename(filePath, ext);
+
+  // 基于文件扩展名和文件名模式生成描述
+  const patterns = [
+    { pattern: /installer|setup|install/i, type: "安装程序" },
+    { pattern: /patch|update|upgrade/i, type: "更新补丁" },
+    { pattern: /crack|keygen|activator/i, type: "激活工具" },
+    { pattern: /driver|驱动/i, type: "驱动程序" },
+    { pattern: /tool|util|工具/i, type: "工具软件" },
+    { pattern: /game|游戏/i, type: "游戏软件" },
+    { pattern: /media|player|播放/i, type: "媒体播放器" },
+    { pattern: /browser|浏览/i, type: "浏览器" },
+    { pattern: /office|word|excel|powerpoint/i, type: "办公软件" },
+  ];
+
+  let description = baseName;
+
+  // 尝试匹配文件名模式
+  for (const { pattern, type } of patterns) {
+    if (pattern.test(fileName)) {
+      description = `${type} ${baseName}`;
+      break;
+    }
   }
+
+  // 添加文件类型信息
+  const fileTypeMap: Record<string, string> = {
+    ".exe": "可执行文件",
+    ".msi": "Windows安装包",
+    ".dmg": "Mac磁盘映像",
+    ".deb": "Debian安装包",
+    ".rpm": "RPM安装包",
+    ".zip": "压缩文件",
+    ".rar": "压缩文件",
+    ".7z": "压缩文件",
+    ".pdf": "PDF文档",
+    ".doc": "Word文档",
+    ".docx": "Word文档",
+    ".xls": "Excel表格",
+    ".xlsx": "Excel表格",
+    ".ppt": "PowerPoint演示",
+    ".pptx": "PowerPoint演示",
+  };
+
+  const fileType = fileTypeMap[ext];
+  if (fileType && !description.includes(fileType)) {
+    description = `${description} (${fileType})`;
+  }
+
+  logger.info({ file: fileName, fallbackDescription: description }, "使用备用方法生成文件描述");
+
+  return description;
 }
 
 /**
