@@ -8,6 +8,7 @@ coverage
 npm-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+package-lock.json
 
 # 配置文件（避免提交敏感信息）
 config.yaml
