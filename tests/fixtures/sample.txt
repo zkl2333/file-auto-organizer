@@ -1,0 +1,5 @@
+Hello World!
+This is a sample text file for testing.
+It contains multiple lines of content.
+Line 4 with some data.
+Line 5 for testing line limits.

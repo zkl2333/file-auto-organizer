@@ -1,0 +1,12 @@
+{
+  "name": "MyTestApp",
+  "version": "1.0.0",
+  "description": "A test application for unit testing",
+  "author": "Test Author",
+  "dependencies": {
+    "express": "^4.18.0"
+  },
+  "scripts": {
+    "start": "node index.js"
+  }
+}
