@@ -33,13 +33,11 @@ export class AIClassificationService {
         )
         .join("\n");
 
-      const contextInfo = `现有目录结构:
-${knownDirs.length > 0 ? knownDirs.map((dir) => `  ${dir}`).join("\n") : "  暂无，需要创建新目录"}
-
-待分类文件列表:
-${filesList}
-
-请为每个文件选择最佳的分类目录。`;
+      const contextInfo = `现有目录结构:\n${
+        knownDirs.length > 0
+          ? knownDirs.map((dir) => `  ${dir}`).join("\n")
+          : "暂无，需要创建新目录"
+      }\n待分类文件列表:\n${filesList}`;
 
       aiLogger.info({ contextInfo }, `批量AI分类请求 - 文件数量: ${files.length}`);
 
