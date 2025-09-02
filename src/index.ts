@@ -49,9 +49,6 @@ function validateCronSchedule(schedule: string): void {
  * 启动定时任务模式
  */
 async function startScheduledMode(mainService: MainService): Promise<void> {
-  // 设置时区
-  process.env.TZ = process.env.TZ || "Asia/Shanghai";
-  
   logger.info(`正在启动定时任务，计划表达式: ${CRON_SCHEDULE}, 时区: ${process.env.TZ}`);
 
   // 验证 cron 表达式
@@ -86,7 +83,7 @@ async function startScheduledMode(mainService: MainService): Promise<void> {
  */
 async function startOnceMode(mainService: MainService): Promise<void> {
   logger.info("单次运行模式");
-  
+
   // 设置清理逻辑（无定时任务）
   setupProcessCleanup();
 
@@ -95,10 +92,7 @@ async function startOnceMode(mainService: MainService): Promise<void> {
     logger.info("单次运行完成");
     process.exit(0);
   } catch (error) {
-    logger.error(
-      { error: error instanceof Error ? error.message : String(error) },
-      "单次运行失败"
-    );
+    logger.error({ error: error instanceof Error ? error.message : String(error) }, "单次运行失败");
     process.exit(1);
   }
 }
@@ -145,7 +139,7 @@ async function main(): Promise<void> {
         );
       }
     }
-    
+
     process.exit(1);
   }
 }
