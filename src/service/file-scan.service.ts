@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { logger } from "../logger.js";
+import { fileScanLogger } from "../logger.js";
 import { config } from "../config.js";
 
 const { MAX_SCAN_DEPTH } = config;
@@ -11,7 +11,7 @@ export class FileScanService {
    */
   scanDirs(rootDir: string): string[] {
     const result: string[] = [];
-    
+
     function walk(dir: string, base: string = "", depth: number = 0): void {
       const entries = fs.readdirSync(dir);
       for (const entry of entries) {
@@ -26,9 +26,16 @@ export class FileScanService {
         }
       }
     }
-    
+
     if (fs.existsSync(rootDir)) {
       walk(rootDir);
+      fileScanLogger.info({
+        rootDir,
+        dirCount: result.length,
+        maxDepth: MAX_SCAN_DEPTH,
+      }, `扫描目录结构完成，发现 ${result.length} 个目录`);
+    } else {
+      fileScanLogger.warn(`根目录不存在: ${rootDir}`);
     }
     return result;
   }
@@ -38,7 +45,7 @@ export class FileScanService {
    */
   scanFiles(rootDir: string): string[] {
     const result: string[] = [];
-    
+
     function walk(dir: string, base: string = "", depth: number = 0): void {
       const entries = fs.readdirSync(dir);
       for (const entry of entries) {
@@ -54,9 +61,16 @@ export class FileScanService {
         }
       }
     }
-    
+
     if (fs.existsSync(rootDir)) {
       walk(rootDir);
+      fileScanLogger.info({
+        rootDir,
+        fileCount: result.length,
+        maxDepth: MAX_SCAN_DEPTH,
+      }, `扫描文件完成，发现 ${result.length} 个文件`);
+    } else {
+      fileScanLogger.warn(`根目录不存在: ${rootDir}`);
     }
     return result;
   }
@@ -66,11 +80,16 @@ export class FileScanService {
    */
   getIncomingFiles(incomingDir: string): string[] {
     if (!fs.existsSync(incomingDir)) {
-      logger.warn(`待分类目录不存在: ${incomingDir}`);
+      fileScanLogger.warn(`待分类目录不存在: ${incomingDir}`);
       return [];
     }
 
     const files = fs.readdirSync(incomingDir);
-    return files.filter(f => fs.statSync(path.join(incomingDir, f)).isFile());
+    const fileList = files.filter((f) => fs.statSync(path.join(incomingDir, f)).isFile());
+    fileScanLogger.info({
+      incomingDir,
+      fileCount: fileList.length,
+    }, `扫描到 ${fileList.length} 个待分类文件`);
+    return fileList;
   }
 }

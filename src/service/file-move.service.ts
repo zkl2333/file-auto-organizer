@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { logger } from "../logger.js";
+import { fileMoveLogger } from "../logger.js";
 import { config } from "../config.js";
 
 const { FILE_MAX_RETRIES, FILE_RETRY_DELAY_BASE, DRY_RUN } = config;
@@ -47,7 +47,7 @@ export class FileMoveService {
     } catch (err: any) {
       if ((err?.code === "EBUSY" || err?.code === "EACCES" || err?.code === "EPERM") && attempt < FILE_MAX_RETRIES) {
         const delay = FILE_RETRY_DELAY_BASE * Math.pow(2, attempt - 1);
-        logger.warn({ src, finalPath, attempt, delay, error: err.message }, "源文件占用，等待删除重试");
+        fileMoveLogger.warn({ src, finalPath, attempt, delay, error: err.message }, "源文件占用，等待删除重试");
         await this.sleep(delay);
         return this.unlinkWithRetryRecursive(src, finalPath, attempt + 1);
       }
@@ -113,7 +113,7 @@ export class FileMoveService {
   private async attemptMoveRecursive(file: string, targetDir: string, desiredTargetPath: string, attempt: number = 1): Promise<void> {
     try {
       fs.renameSync(file, desiredTargetPath);
-      logger.info({ from: file, to: desiredTargetPath }, "文件已移动");
+      fileMoveLogger.info({ from: file, to: desiredTargetPath }, "文件已移动");
       return;
     } catch (err: any) {
       if (err?.code === "EEXIST") {
@@ -122,20 +122,20 @@ export class FileMoveService {
       }
       if (err?.code === "EXDEV") {
         const finalPath = await this.copyThenUnlinkWithFinalize(file, targetDir, desiredTargetPath);
-        logger.info({ from: file, to: finalPath }, "文件已移动（跨设备回退复制）");
+        fileMoveLogger.info({ from: file, to: finalPath }, "文件已移动（跨设备回退复制）");
         return;
       }
       if (err?.code === "ENOENT") {
-        logger.warn({ file }, "源文件不存在，跳过移动");
+        fileMoveLogger.warn({ file }, "源文件不存在，跳过移动");
         return;
       }
       if ((err?.code === "EBUSY" || err?.code === "EACCES" || err?.code === "EPERM") && attempt < FILE_MAX_RETRIES) {
         const delay = FILE_RETRY_DELAY_BASE * Math.pow(2, attempt - 1);
-        logger.warn({ file, attempt, maxRetries: FILE_MAX_RETRIES, delay, error: err.message }, "文件被占用，等待重试");
+        fileMoveLogger.warn({ file, attempt, maxRetries: FILE_MAX_RETRIES, delay, error: err.message }, "文件被占用，等待重试");
         await this.sleep(delay);
         return this.attemptMoveRecursive(file, targetDir, desiredTargetPath, attempt + 1);
       }
-      logger.error({ file, desiredTargetPath, error: err?.message }, "文件移动失败");
+      fileMoveLogger.error({ file, desiredTargetPath, error: err?.message }, "文件移动失败");
       throw err;
     }
   }
@@ -151,7 +151,7 @@ export class FileMoveService {
     const targetPath = path.join(normalizedTargetDir, fileBaseName);
 
     if (DRY_RUN) {
-      logger.info(`[dry-run] ${file} -> ${targetDir}`);
+      fileMoveLogger.info(`[dry-run] ${file} -> ${targetDir}`);
       return;
     }
 

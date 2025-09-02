@@ -1,6 +1,6 @@
 import OpenAI from "openai";
 import { config } from "../config.js";
-import { logger } from "../logger.js";
+import { aiLogger } from "../logger.js";
 
 export class AIClassificationService {
   private openai: OpenAI;
@@ -41,7 +41,7 @@ ${filesList}
 
 请为每个文件选择最佳的分类目录。`;
 
-      logger.info(`批量AI分类请求 - 文件数量: ${files.length}`);
+      aiLogger.info(`批量AI分类请求 - 文件数量: ${files.length}`);
 
       const res = await this.openai.chat.completions.create({
         model: config.OPENAI_MODEL,
@@ -103,7 +103,7 @@ ${filesList}
 
       // 记录 AI 原始响应的关键元信息，避免日志过大
       try {
-        logger.info(
+        aiLogger.info(
           {
             ai_response_meta: {
               id: (res as any)?.id,
@@ -118,7 +118,7 @@ ${filesList}
       const choice = res.choices?.[0];
       // 打印首个 choice 的消息体（包含 tool_calls 或 content）
       try {
-        logger.info({ ai_message: choice?.message }, "AI 返回消息");
+        aiLogger.info({ ai_message: choice?.message }, "AI 返回消息");
       } catch {}
       if (choice?.message?.tool_calls?.[0]) {
         const toolCall = choice.message.tool_calls[0];
@@ -126,7 +126,7 @@ ${filesList}
           try {
             // 打印工具调用的原始参数（AI 直接返回）
             try {
-              logger.info(
+              aiLogger.info(
                 {
                   ai_tool_call: {
                     name: toolCall.function.name,
@@ -139,10 +139,10 @@ ${filesList}
             const result = JSON.parse(toolCall.function.arguments);
             const classifications = result.classifications || [];
 
-            logger.info(`批量分类完成，处理了 ${classifications.length} 个文件`);
+            aiLogger.info(`批量分类完成，处理了 ${classifications.length} 个文件`);
             // 打印解析后的分类结果（便于检索调试）
             try {
-              logger.info({ classifications }, "AI 分类原始结果");
+              aiLogger.info({ classifications }, "AI 分类原始结果");
             } catch {}
 
             return classifications.map((item: any) => ({
@@ -152,7 +152,7 @@ ${filesList}
               reasoning: item.reasoning,
             }));
           } catch (parseError) {
-            logger.error(`解析批量分类结果失败: ${parseError}`);
+            aiLogger.error(`解析批量分类结果失败: ${parseError}`);
             throw new Error(`批量分类解析失败: ${parseError}`);
           }
         }
@@ -160,7 +160,7 @@ ${filesList}
 
       throw new Error("AI批量分类失败：未返回有效结果");
     } catch (error) {
-      logger.error(`批量分类失败: ${error}`);
+      aiLogger.error(`批量分类失败: ${error}`);
       throw error;
     }
   }

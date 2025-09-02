@@ -1,6 +1,6 @@
 import path from "node:path";
 import levenshtein from "fast-levenshtein";
-import { logger } from "../logger.js";
+import { mainLogger } from "../logger.js";
 import { config } from "../config.js";
 import { FileScanService } from "./file-scan.service.js";
 import { FileMoveService } from "./file-move.service.js";
@@ -76,7 +76,7 @@ export class MainService {
    * 执行一次完整的分类任务
    */
   async runOnce(): Promise<void> {
-    logger.info(`开始分类任务...${DRY_RUN ? "(dry-run)" : ""}`);
+    mainLogger.info(`开始分类任务...${DRY_RUN ? "(dry-run)" : ""}`);
 
     const dirs = this.fileScanService.scanDirs(ROOT_DIR);
     const knownFiles = this.fileScanService.scanFiles(ROOT_DIR);
@@ -84,7 +84,7 @@ export class MainService {
     const filesToProcess = this.fileScanService.getIncomingFiles(INCOMING_DIR);
 
     if (filesToProcess.length === 0) {
-      logger.info("没有需要分类的文件");
+      mainLogger.info("没有需要分类的文件");
       return;
     }
 
@@ -103,7 +103,7 @@ export class MainService {
       description: string;
     }> = [];
 
-    logger.info(`开始相似度匹配，处理 ${filesToProcess.length} 个文件`);
+    mainLogger.info(`开始相似度匹配，处理 ${filesToProcess.length} 个文件`);
 
     for (const f of filesToProcess) {
       const filePath = path.join(INCOMING_DIR, f);
@@ -119,7 +119,7 @@ export class MainService {
           similarFile: bestRelPath
         });
         
-        logger.info(
+        mainLogger.info(
           {
             file: f,
             similarFile: bestRelPath ? path.basename(bestRelPath) : "未知",
@@ -138,7 +138,7 @@ export class MainService {
         });
         
         if (bestDir && bestScore > 0) {
-          logger.info(
+          mainLogger.info(
             {
               file: f,
               similarFile: bestRelPath ? path.basename(bestRelPath) : "未知",
@@ -157,7 +157,7 @@ export class MainService {
         const targetDir = path.join(ROOT_DIR, result.bestDir!);
         await this.fileMoveService.moveFile(result.filePath, targetDir);
         
-        logger.info(
+        mainLogger.info(
           {
             file: result.fileName,
             from: result.filePath,
@@ -169,14 +169,14 @@ export class MainService {
           "文件已移动"
         );
       } catch (err) {
-        logger.error({ err, fileName: result.fileName }, `相似度分类移动文件失败`);
+        mainLogger.error({ err, fileName: result.fileName }, `相似度分类移动文件失败`);
       }
     }
 
     // 第三步：分批AI分类剩余文件
     if (needAIClassification.length > 0) {
       try {
-        logger.info(`开始AI分批分类，总计 ${needAIClassification.length} 个文件，批次大小: ${AI_BATCH_SIZE}`);
+        mainLogger.info(`开始AI分批分类，总计 ${needAIClassification.length} 个文件，批次大小: ${AI_BATCH_SIZE}`);
         
         // 分批处理
         const batches = this.chunkArray(needAIClassification, AI_BATCH_SIZE);
@@ -184,7 +184,7 @@ export class MainService {
         
         for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
           const batch = batches[batchIndex];
-          logger.info(`处理第 ${batchIndex + 1}/${batches.length} 批次，包含 ${batch.length} 个文件`);
+          mainLogger.info(`处理第 ${batchIndex + 1}/${batches.length} 批次，包含 ${batch.length} 个文件`);
           
           try {
             const classificationResults = await this.aiClassificationService.classifyBatch(
@@ -192,7 +192,7 @@ export class MainService {
               dirs
             );
 
-            logger.info(`第 ${batchIndex + 1} 批次分类完成，处理了 ${classificationResults.length} 个文件`);
+            mainLogger.info(`第 ${batchIndex + 1} 批次分类完成，处理了 ${classificationResults.length} 个文件`);
 
             // 处理这个批次的分类结果
             for (let i = 0; i < classificationResults.length; i++) {
@@ -200,7 +200,7 @@ export class MainService {
               const fileInfo = batch.find(f => f.fileName === result.fileName);
               
               if (!fileInfo) {
-                logger.warn(`找不到文件信息: ${result.fileName}`);
+                mainLogger.warn(`找不到文件信息: ${result.fileName}`);
                 continue;
               }
 
@@ -210,7 +210,7 @@ export class MainService {
                 // 如果路径为空，使用默认目录
                 if (!targetDir) {
                   targetDir = "未分类";
-                  logger.warn({ fileName: result.fileName }, "AI返回空路径，使用默认目录");
+                  mainLogger.warn({ fileName: result.fileName }, "AI返回空路径，使用默认目录");
                 }
                 
                 // 归一化：如果 AI 给的路径末段误含文件名，则剥离
@@ -221,7 +221,7 @@ export class MainService {
                 const fullTargetDir = path.join(ROOT_DIR, normalizedRelTargetDir);
                 await this.fileMoveService.moveFile(fileInfo.filePath, fullTargetDir);
                 
-                logger.info(
+                mainLogger.info(
                   {
                     file: result.fileName,
                     from: fileInfo.filePath,
@@ -235,28 +235,28 @@ export class MainService {
                 );
                 totalProcessed++;
               } catch (err) {
-                logger.error({ err, fileName: result.fileName }, `第 ${batchIndex + 1} 批次文件移动失败`);
+                mainLogger.error({ err, fileName: result.fileName }, `第 ${batchIndex + 1} 批次文件移动失败`);
               }
             }
           } catch (err) {
-            logger.error({ err, batchIndex: batchIndex + 1, batchSize: batch.length }, `第 ${batchIndex + 1} 批次AI分类失败`);
+            mainLogger.error({ err, batchIndex: batchIndex + 1, batchSize: batch.length }, `第 ${batchIndex + 1} 批次AI分类失败`);
             // 继续处理下一批次，不中断整个流程
           }
           
           // 批次间稍作延迟，避免API请求过于频繁
           if (batchIndex < batches.length - 1) {
-            logger.info(`批次间等待 1 秒...`);
+            mainLogger.info(`批次间等待 1 秒...`);
             await new Promise(resolve => setTimeout(resolve, 1000));
           }
         }
         
-        logger.info(`AI分批分类完成，总计处理 ${totalProcessed}/${needAIClassification.length} 个文件`);
+        mainLogger.info(`AI分批分类完成，总计处理 ${totalProcessed}/${needAIClassification.length} 个文件`);
       } catch (err) {
-        logger.error({ err }, `AI分批分类过程失败`);
+        mainLogger.error({ err }, `AI分批分类过程失败`);
         throw err;
       }
     }
 
-    logger.info(`分类任务完成 - 相似度匹配: ${similarityResults.length} 个, AI分类: ${needAIClassification.length} 个`);
+    mainLogger.info(`分类任务完成 - 相似度匹配: ${similarityResults.length} 个, AI分类: ${needAIClassification.length} 个`);
   }
 }

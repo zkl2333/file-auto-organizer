@@ -1,12 +1,11 @@
 import path from "node:path";
 import fs from "node:fs";
 import { exiftool, Tags } from "exiftool-vendored";
-import { logger } from "../logger.js";
+import { fileInfoLogger } from "../logger.js";
 
 export class FileInfoService {
   constructor() {
-    // 程序退出时关闭 exiftool
-    this.setupCleanup();
+    // 清理逻辑由进程管理器统一处理
   }
 
   /**
@@ -32,8 +31,8 @@ export class FileInfoService {
         return { valid: false, error: "文件为空" };
       }
 
-      // 检查文件大小是否过大（超过1GB可能有问题）
-      const maxSize = 1024 * 1024 * 1024; // 1GB
+      // 检查文件大小是否过大（超过2GB可能有问题）
+      const maxSize = 2 * 1024 * 1024 * 1024; // 2GB
       if (stats.size > maxSize) {
         return { valid: false, error: `文件过大 (${(stats.size / 1024 / 1024).toFixed(2)}MB)` };
       }
@@ -148,7 +147,7 @@ export class FileInfoService {
     // 预检查文件
     const validation = this.validateFile(filePath);
     if (!validation.valid) {
-      logger.warn(
+      fileInfoLogger.warn(
         {
           file: fileName,
           reason: validation.error,
@@ -165,9 +164,9 @@ export class FileInfoService {
       const description = this.buildDescription(tags, fileTags) ?? "";
 
       if (description) {
-        logger.info({ file: fileName, description }, "获取文件描述信息成功");
+        fileInfoLogger.info({ file: fileName, description }, "获取文件描述信息成功");
       } else {
-        logger.info({ file: fileName }, "文件无可用描述信息");
+        fileInfoLogger.info({ file: fileName }, "文件无可用描述信息");
       }
 
       return description;
@@ -197,7 +196,7 @@ export class FileInfoService {
         errorCategory = "读取超时";
       }
 
-      logger.error({ ...errorInfo, category: errorCategory }, "读取文件信息失败");
+      fileInfoLogger.error({ ...errorInfo, category: errorCategory }, "读取文件信息失败");
 
       // 尝试备用方法：基于文件名和扩展名生成基础描述
       return this.getFileDescriptionFallback(filePath);
@@ -259,38 +258,42 @@ export class FileInfoService {
       description = `${description} (${fileType})`;
     }
 
-    logger.info({ file: fileName, fallbackDescription: description }, "使用备用方法生成文件描述");
+    fileInfoLogger.info({ file: fileName, fallbackDescription: description }, "使用备用方法生成文件描述");
 
     return description;
   }
 
   /**
-   * 设置清理函数
+   * 程序退出时关闭 exiftool (异步)
    */
-  private setupCleanup() {
-    process.on("SIGINT", async () => {
-      await this.cleanupExiftool();
-      process.exit();
-    });
-
-    process.on("SIGTERM", async () => {
-      await this.cleanupExiftool();
-      process.exit();
-    });
-
-    process.on("exit", () => {
-      exiftool.end(); // sync 关闭，保证进程退出
-    });
-  }
-
-  /**
-   * 程序退出时关闭 exiftool
-   */
-  private async cleanupExiftool() {
+  public async cleanupExiftool() {
     try {
       await exiftool.end();
     } catch (err) {
-      logger.error({ error: err }, "关闭 exiftool 失败");
+      fileInfoLogger.error({ error: err }, "关闭 exiftool 失败");
+    }
+  }
+
+  /**
+   * 程序退出时关闭 exiftool (同步)
+   */
+  public cleanupExiftoolSync() {
+    try {
+      exiftool.end(); // sync 关闭，保证进程退出
+    } catch (err) {
+      fileInfoLogger.error({ error: err }, "同步关闭 exiftool 失败");
     }
   }
 }
+
+// 导出清理函数供进程管理器调用
+const fileInfoService = new FileInfoService();
+
+export async function cleanupFileInfo() {
+  await fileInfoService.cleanupExiftool();
+}
+
+export function cleanupFileInfoSync() {
+  fileInfoService.cleanupExiftoolSync();
+}
+
