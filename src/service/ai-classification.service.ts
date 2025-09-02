@@ -41,7 +41,7 @@ ${filesList}
 
 请为每个文件选择最佳的分类目录。`;
 
-      aiLogger.info(`批量AI分类请求 - 文件数量: ${files.length}`);
+      aiLogger.info({ contextInfo }, `批量AI分类请求 - 文件数量: ${files.length}`);
 
       const res = await this.openai.chat.completions.create({
         model: config.OPENAI_MODEL,
@@ -188,6 +188,12 @@ ${filesList}
 - 文档按内容性质分类（技术文档、工作文档、个人资料等）
 - 媒体文件按格式和用途分类
 - 压缩包按内容推测进行分类
+
+## 决策流程
+1. 查看现有目录列表
+2. 判断文件类型和用途
+3. 寻找最合适的现有目录
+4. 如没有合适的现有目录则创建新目录
 
 批量处理时要保持分类的一致性和逻辑性。`;
   }

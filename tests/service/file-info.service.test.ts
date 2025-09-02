@@ -293,9 +293,16 @@ describe('FileInfoService 核心功能测试', () => {
       expect(info.ext).toBe('.txt');
       expect(info.isText).toBe(true);
       
-      // 测试getFileDescription方法
+      // 测试getFileDescription方法 - 新格式验证
       const description = await service.getFileDescription(textFile);
       expect(typeof description).toBe('string');
+      expect(description).toMatch(/^元数据: .*\n摘要: .*$/);
+      
+      // 验证文本文件返回格式
+      const lines = description.split('\n');
+      expect(lines).toHaveLength(2);
+      expect(lines[0]).toMatch(/^元数据: /);
+      expect(lines[1]).toMatch(/^摘要: /);
       
       // 测试getFileSegment方法
       const segment = service.getFileSegment(textFile, 0, 10);
@@ -315,6 +322,97 @@ describe('FileInfoService 核心功能测试', () => {
     } finally {
       if (fs.existsSync(textFile)) {
         fs.unlinkSync(textFile);
+      }
+    }
+  });
+
+  test('getFileDescription应该为不同文件类型返回正确格式', async () => {
+    const service = new FileInfoService();
+    
+    // 测试空文本文件
+    const emptyTextFile = path.join(fixturesDir, 'empty-description-test.txt');
+    fs.writeFileSync(emptyTextFile, '');
+    
+    try {
+      const emptyDescription = await service.getFileDescription(emptyTextFile);
+      expect(emptyDescription).toBe('');
+    } finally {
+      if (fs.existsSync(emptyTextFile)) {
+        fs.unlinkSync(emptyTextFile);
+      }
+    }
+    
+    // 测试有内容的文本文件
+    const contentTextFile = path.join(fixturesDir, 'content-description-test.txt');
+    fs.writeFileSync(contentTextFile, 'This is a meaningful content\nWith multiple lines\nContaining important information');
+    
+    try {
+      const contentDescription = await service.getFileDescription(contentTextFile);
+      expect(contentDescription).toMatch(/^元数据: \n摘要: /);
+      const summary = contentDescription.split('\n')[1].replace('摘要: ', '');
+      expect(summary.length).toBeGreaterThan(0);
+      expect(summary).toContain('This is a meaningful content');
+    } finally {
+      if (fs.existsSync(contentTextFile)) {
+        fs.unlinkSync(contentTextFile);
+      }
+    }
+    
+    // 测试JSON文件
+    const jsonFile = path.join(fixturesDir, 'description-test.json');
+    const jsonData = { name: 'TestApp', title: 'Test Application' };
+    fs.writeFileSync(jsonFile, JSON.stringify(jsonData));
+    
+    try {
+      const jsonDescription = await service.getFileDescription(jsonFile);
+      expect(jsonDescription).toMatch(/^元数据: \n摘要: /);
+      const summary = jsonDescription.split('\n')[1].replace('摘要: ', '');
+      expect(summary).toBe('TestApp'); // JSON文件应该提取name字段
+    } finally {
+      if (fs.existsSync(jsonFile)) {
+        fs.unlinkSync(jsonFile);
+      }
+    }
+  });
+
+  test('getFileDescription应该正确处理备用情况', async () => {
+    const service = new FileInfoService();
+    
+    // 测试不存在的文件
+    const nonExistentFile = path.join(fixturesDir, 'non-existent-file.txt');
+    
+    const fallbackDescription = await service.getFileDescription(nonExistentFile);
+    expect(fallbackDescription).toBe('');
+  });
+
+  test('getFileDescription应该处理各种已知文件类型', async () => {
+    const service = new FileInfoService();
+    
+    const testCases = [
+      { ext: '.md', content: '# Markdown File\nThis is a markdown document' },
+      { ext: '.js', content: 'console.log("Hello World");' },
+      { ext: '.py', content: 'print("Hello World")' },
+      { ext: '.html', content: '<html><body>Hello</body></html>' },
+      { ext: '.css', content: 'body { color: red; }' },
+      { ext: '.xml', content: '<?xml version="1.0"?><root>data</root>' }
+    ];
+    
+    for (const testCase of testCases) {
+      const testFile = path.join(fixturesDir, `type-test${testCase.ext}`);
+      fs.writeFileSync(testFile, testCase.content);
+      
+      try {
+        const description = await service.getFileDescription(testFile);
+        expect(description).toMatch(/^元数据: \n摘要: /);
+        
+        // 文本文件应该有摘要（如果内容有意义）
+        const summary = description.split('\n')[1].replace('摘要: ', '');
+        expect(summary.length).toBeGreaterThan(0);
+        
+      } finally {
+        if (fs.existsSync(testFile)) {
+          fs.unlinkSync(testFile);
+        }
       }
     }
   });
@@ -364,7 +462,18 @@ describe('FileInfoService 核心功能测试', () => {
       'binary-elf.elf',
       'binary-exe.exe',
       // 服务方法测试文件
-      'service-test.txt'
+      'service-test.txt',
+      // getFileDescription 测试文件
+      'empty-description-test.txt',
+      'content-description-test.txt',
+      'description-test.json',
+      'non-existent-file.txt',
+      'type-test.md',
+      'type-test.js',
+      'type-test.py',
+      'type-test.html',
+      'type-test.css',
+      'type-test.xml'
     ];
     
     testFiles.forEach(filename => {

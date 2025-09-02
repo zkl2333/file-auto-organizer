@@ -20,6 +20,7 @@ export class MainService {
   private fileMoveService: FileMoveService;
   private aiClassificationService: AIClassificationService;
   private fileInfoService: FileInfoService;
+  private currentKnownDirs: string[] = []; // 动态维护的已知目录列表
 
   constructor() {
     this.fileScanService = new FileScanService();
@@ -62,6 +63,17 @@ export class MainService {
   }
 
   /**
+   * 更新已知目录列表，添加新创建的目录
+   */
+  private updateKnownDirectories(newDirPath: string): void {
+    const relativeDir = path.relative(ROOT_DIR, newDirPath);
+    if (relativeDir && !this.currentKnownDirs.includes(relativeDir)) {
+      this.currentKnownDirs.push(relativeDir);
+      mainLogger.info({ newDir: relativeDir }, "添加新目录到已知目录列表");
+    }
+  }
+
+  /**
    * 分批处理工具函数
    */
   private chunkArray<T>(array: T[], chunkSize: number): T[][] {
@@ -78,9 +90,11 @@ export class MainService {
   async runOnce(): Promise<void> {
     mainLogger.info(`开始分类任务...${DRY_RUN ? "(dry-run)" : ""}`);
 
-    const dirs = this.fileScanService.scanDirs(ROOT_DIR);
-    const knownFiles = this.fileScanService.scanFiles(ROOT_DIR);
+    // 初始化已知目录列表
+    this.currentKnownDirs = this.fileScanService.scanDirs(ROOT_DIR);
+    mainLogger.info({ initialDirCount: this.currentKnownDirs.length }, "初始化已知目录列表");
 
+    const knownFiles = this.fileScanService.scanFiles(ROOT_DIR);
     const filesToProcess = this.fileScanService.getIncomingFiles(INCOMING_DIR);
 
     if (filesToProcess.length === 0) {
@@ -157,6 +171,9 @@ export class MainService {
         const targetDir = path.join(ROOT_DIR, result.bestDir!);
         await this.fileMoveService.moveFile(result.filePath, targetDir);
         
+        // 更新已知目录列表
+        this.updateKnownDirectories(targetDir);
+        
         mainLogger.info(
           {
             file: result.fileName,
@@ -187,9 +204,10 @@ export class MainService {
           mainLogger.info(`处理第 ${batchIndex + 1}/${batches.length} 批次，包含 ${batch.length} 个文件`);
           
           try {
+            // 使用当前最新的已知目录列表进行AI分类
             const classificationResults = await this.aiClassificationService.classifyBatch(
               batch.map(f => ({ fileName: f.fileName, description: f.description })),
-              dirs
+              this.currentKnownDirs
             );
 
             mainLogger.info(`第 ${batchIndex + 1} 批次分类完成，处理了 ${classificationResults.length} 个文件`);
@@ -220,6 +238,9 @@ export class MainService {
 
                 const fullTargetDir = path.join(ROOT_DIR, normalizedRelTargetDir);
                 await this.fileMoveService.moveFile(fileInfo.filePath, fullTargetDir);
+                
+                // 更新已知目录列表
+                this.updateKnownDirectories(fullTargetDir);
                 
                 mainLogger.info(
                   {

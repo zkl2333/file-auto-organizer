@@ -88,7 +88,7 @@ export class FileInfoService {
     // 流式读取前1024字节判断文件类型
     try {
       const sample = this.readFileChunk(filePath, 0, 1024);
-      
+
       // 检查是否匹配已知的二进制文件签名
       for (const signature of BINARY_SIGNATURES) {
         if (sample.length >= signature.length) {
@@ -134,7 +134,7 @@ export class FileInfoService {
    * 统一的文件块读取方法
    */
   private readFileChunk(filePath: string, offset: number, size: number): Buffer {
-    const fd = fs.openSync(filePath, 'r');
+    const fd = fs.openSync(filePath, "r");
     try {
       const buffer = Buffer.alloc(size);
       const bytesRead = fs.readSync(fd, buffer, 0, size, offset);
@@ -155,7 +155,7 @@ export class FileInfoService {
     const result: string[] = [];
     let totalChars = 0;
     let lineCount = 0;
-    let leftover = '';
+    let leftover = "";
     let position = 0;
     const chunkSize = 8192;
 
@@ -165,16 +165,16 @@ export class FileInfoService {
         if (chunk.length === 0) break; // 文件结束
 
         position += chunk.length;
-        const text = leftover + chunk.toString('utf8');
+        const text = leftover + chunk.toString("utf8");
         const lines = text.split(/\r?\n/);
-        
+
         // 保存最后一行（可能不完整）
-        leftover = lines.pop() || '';
-        
+        leftover = lines.pop() || "";
+
         for (const line of lines) {
           const trimmedLine = line.trim();
           if (!trimmedLine) continue;
-          
+
           let finalLine = trimmedLine;
           if (totalChars + trimmedLine.length > maxChars) {
             const remainingChars = maxChars - totalChars;
@@ -184,15 +184,15 @@ export class FileInfoService {
               break;
             }
           }
-          
+
           result.push(finalLine);
           totalChars += finalLine.length;
           lineCount++;
-          
+
           if (lineCount >= maxLines || totalChars >= maxChars) break;
         }
       }
-      
+
       // 处理最后剩余的内容
       if (leftover.trim() && lineCount < maxLines && totalChars < maxChars) {
         const trimmedLine = leftover.trim();
@@ -207,7 +207,7 @@ export class FileInfoService {
           result.push(finalLine);
         }
       }
-      
+
       return result;
     } catch (err) {
       // 尝试使用其他编码
@@ -252,8 +252,8 @@ export class FileInfoService {
     if (ext === ".json") {
       try {
         const chunk = this.readFileChunk(filePath, 0, 8192);
-        const content = chunk.toString('utf8');
-        
+        const content = chunk.toString("utf8");
+
         try {
           const jsonData = JSON.parse(content);
           if (jsonData.name) {
@@ -268,7 +268,7 @@ export class FileInfoService {
           const nameMatch = content.match(/"name"\s*:\s*"([^"]+)"/);
           const titleMatch = content.match(/"title"\s*:\s*"([^"]+)"/);
           const descMatch = content.match(/"description"\s*:\s*"([^"]+)"/);
-          
+
           if (nameMatch) return nameMatch[1];
           if (titleMatch) return titleMatch[1];
           if (descMatch) return descMatch[1];
@@ -335,90 +335,7 @@ export class FileInfoService {
     }
   }
 
-  /** 根据文件类型返回相关标签 */
-  private getTagsForFileType(filePath: string): string[] {
-    const ext = path.extname(filePath).toLowerCase();
 
-    switch (ext) {
-      case ".exe":
-        return [
-          "FileDescription",
-          "ProductName",
-          "CompanyName",
-          "ProductVersion",
-          "FileVersionNumber",
-          "InternalName",
-          "LegalCopyright",
-          "Comment",
-          "Title",
-          "Description",
-          "Subject",
-        ];
-      case ".jpg":
-      case ".jpeg":
-      case ".png":
-      case ".gif":
-      case ".tiff":
-        return [
-          "Make",
-          "Model",
-          "ExposureTime",
-          "FNumber",
-          "ISO",
-          "DateTimeOriginal",
-          "GPSLatitude",
-          "GPSLongitude",
-        ];
-      case ".mp4":
-      case ".mov":
-      case ".avi":
-        return [
-          "Make",
-          "Model",
-          "Software",
-          "Duration",
-          "VideoCodec",
-          "AudioCodec",
-          "DateTimeOriginal",
-        ];
-      case ".mp3":
-      case ".wav":
-        return ["Artist", "Album", "Title", "Track", "Genre", "Duration", "DateTimeOriginal"];
-      case ".pdf":
-        return ["Title", "Author", "Subject", "Creator", "Producer", "CreationDate", "ModDate"];
-      case ".docx":
-        return [
-          "Title",
-          "Author",
-          "Subject",
-          "Creator",
-          "Producer",
-          "CreationDate",
-          "LastModifiedBy",
-        ];
-      default:
-        return ["Title", "Description", "Subject", "Comment", "CompanyName", "ProductVersion"];
-    }
-  }
-
-  /**
-   * 通用函数：根据指定字段构建描述
-   */
-  private buildDescription(tags: Tags, fields: string[]): string | null {
-    const parts: string[] = [];
-    fields.forEach((field) => {
-      const value = tags[field as keyof Tags];
-      if (value) {
-        parts.push(`${value}`);
-      }
-    });
-    return fields.length > 0
-      ? parts
-          .map((part) => part.trim())
-          .join(" ")
-          .trim()
-      : null;
-  }
 
   /**
    * 获取任意文件描述信息（供外部调用）
@@ -437,22 +354,30 @@ export class FileInfoService {
         },
         "文件预检查失败，使用备用方法"
       );
-      return this.getFileDescriptionFallback(filePath);
+      return this.getFileDescriptionFallbackPrompt(filePath);
     }
 
     // 检查是否为文本文件
     if (this.isTextFile(filePath)) {
       try {
-        const description = this.generateTextFileDescription(filePath);
-        fileInfoLogger.info(
-          {
-            file: fileName,
-            description,
-            type: "text",
-          },
-          "获取文本文件描述信息成功"
-        );
-        return description;
+        const summary = this.generateTextFileDescription(filePath);
+        // 对于文本文件，只有内容摘要有价值时才返回，否则返回空让AI推断
+        if (summary && summary.trim()) {
+          const prompt = this.formatFilePrompt("", summary);
+          fileInfoLogger.info(
+            {
+              file: fileName,
+              summary,
+              type: "text",
+            },
+            "获取文本文件描述信息成功"
+          );
+          return prompt;
+        } else {
+          // 没有有价值的内容，返回空让AI完全推断
+          fileInfoLogger.debug({ file: fileName }, "文本文件无特殊内容，返回空描述让AI推断");
+          return this.formatFilePrompt("", "");
+        }
       } catch (err) {
         fileInfoLogger.error(
           {
@@ -467,23 +392,20 @@ export class FileInfoService {
 
     try {
       const tags = await exiftool.read(filePath);
-      const fileTags = this.getTagsForFileType(filePath);
-      const description = this.buildDescription(tags, fileTags) ?? "";
+      const tagsString = this.getMetadataTagsString(tags, filePath);
+      // 对于元数据文件，标签字符串已经包含所有有价值信息，摘要设为空
+      const prompt = this.formatFilePrompt(tagsString, "");
 
-      if (description) {
-        fileInfoLogger.info(
-          {
-            file: fileName,
-            description,
-            type: "metadata",
-          },
-          "获取文件描述信息成功"
-        );
-      } else {
-        fileInfoLogger.info({ file: fileName }, "文件无可用描述信息");
-      }
+      fileInfoLogger.info(
+        {
+          file: fileName,
+          extractedTags: tagsString,
+          type: "metadata",
+        },
+        "获取文件描述信息成功"
+      );
 
-      return description || this.getFileDescriptionFallback(filePath);
+      return prompt;
     } catch (err) {
       // 提供详细的错误信息
       const errorInfo = {
@@ -513,45 +435,79 @@ export class FileInfoService {
       fileInfoLogger.error({ ...errorInfo, category: errorCategory }, "读取文件信息失败");
 
       // 尝试备用方法：基于文件名和扩展名生成基础描述
-      return this.getFileDescriptionFallback(filePath);
+      return this.getFileDescriptionFallbackPrompt(filePath);
     }
   }
 
   /**
-   * 备用文件描述获取方法（极简版：完全依赖AI推断）
+   * 格式化文件提示信息
    */
-  private getFileDescriptionFallback(filePath: string): string {
-    const fileName = path.basename(filePath);
-    const ext = path.extname(filePath).toLowerCase();
-
-    // AI已知的常见文件类型完全不需要额外描述
-    const knownExtensions = new Set([
-      ".exe", ".msi", ".dmg", ".deb", ".rpm",
-      ".zip", ".rar", ".7z", ".tar", ".gz",
-      ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
-      ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".svg", ".webp",
-      ".mp4", ".avi", ".mov", ".mkv", ".wmv", ".flv", ".webm",
-      ".mp3", ".wav", ".flac", ".ogg", ".m4a", ".aac",
-      ".txt", ".md", ".json", ".xml", ".yaml", ".yml", ".ini", ".conf",
-      ".js", ".ts", ".py", ".java", ".cpp", ".cs", ".php", ".rb", ".go",
-      ".html", ".css", ".scss", ".less", ".vue", ".jsx", ".tsx"
-    ]);
-
-    if (knownExtensions.has(ext)) {
-      fileInfoLogger.debug(
-        { file: fileName },
-        "已知文件类型，返回空描述让AI推断"
-      );
+  private formatFilePrompt(tags: string, summary: string): string {
+    // 如果元数据和摘要都为空，直接返回空字符串
+    if (!tags.trim() && !summary.trim()) {
       return "";
     }
+    return `元数据: ${tags}\n摘要: ${summary}`;
+  }
 
-    // 对于真正未知的文件类型，也返回空描述，让AI根据完整文件名判断
-    fileInfoLogger.debug(
-      { file: fileName, unknownExt: ext },
-      "未知文件类型，返回空描述让AI推断"
-    );
+  /**
+   * 获取真正有价值的元数据标签字符串（排除法过滤）
+   */
+  private getMetadataTagsString(tags: Tags, filePath: string): string {
+    const tagsList: string[] = [];
     
-    return "";
+    // 不重要的字段黑名单（排除法）
+    const excludeFields = new Set([
+      // 文件系统相关
+      "SourceFile", "Directory", "FileName", "FileSize", "FilePermissions",
+      "FileModifyDate", "FileAccessDate", "FileCreateDate", "CreationDate", "ModDate",
+      
+      // 技术细节
+      "ExifToolVersion", "MIMEType", "FileType", "FileTypeExtension", "warnings", "errors",
+      
+      // 图像技术参数
+      "ColorComponents", "YCbCrSubSampling", "EncodingProcess", "BitsPerSample", 
+      "JFIFVersion", "ResolutionUnit", "XResolution", "YResolution", "ImageSize", "Megapixels",
+      
+      // 程序技术细节
+      "MachineType", "PEType", "LinkerVersion", "CodeSize", "InitializedDataSize", 
+      "UninitializedDataSize", "EntryPoint", "OSVersion", "ImageVersion", "SubsystemVersion",
+      "Subsystem", "FileFlagsMask", "FileFlags", "FileOS", "ObjectFileType", "FileSubtype",
+      "LanguageCode", "CharacterSet", "TimeStamp", "ImageFileCharacteristics",
+      "PDBModifyDate", "PDBAge", "PDBFileName"
+    ]);
+
+    // 遍历所有标签，排除不重要的
+    Object.entries(tags).forEach(([field, value]) => {
+      try {
+        if (!excludeFields.has(field) && value != null && value !== undefined) {
+          const stringValue = value.toString().trim();
+          if (stringValue && stringValue !== "0" && stringValue !== "false") {
+            tagsList.push(`${field}: ${stringValue}`);
+          }
+        }
+      } catch (err) {
+        // 单个字段处理失败不影响其他字段
+        fileInfoLogger.debug(
+          { field, error: err },
+          "处理元数据字段时出错，跳过该字段"
+        );
+      }
+    });
+
+    return tagsList.join(", ");
+  }
+
+  /**
+   * 备用文件描述获取方法（返回空描述让 AI 推断）
+   */
+  private getFileDescriptionFallbackPrompt(filePath: string): string {
+    const fileName = path.basename(filePath);
+
+    fileInfoLogger.debug({ file: fileName }, "无法获取文件元数据，返回空描述让AI推断");
+
+    // 完全依赖AI根据文件名推断，不提供任何预设信息
+    return this.formatFilePrompt("", "");
   }
 
   /**
@@ -594,7 +550,7 @@ export class FileInfoService {
 
       // 统一使用流式读取
       const chunk = this.readFileChunk(filePath, 0, stats.size);
-      return chunk.toString('utf8');
+      return chunk.toString("utf8");
     } catch (err) {
       if (err instanceof Error && err.message.includes("文件过大")) {
         throw err;
@@ -627,41 +583,37 @@ export class FileInfoService {
       throw new Error("指定文件不是文本文件");
     }
 
-    const {
-      encoding = 'utf8',
-      chunkSize = 8192,
-      maxSize = 100 * 1024 * 1024
-    } = options;
+    const { encoding = "utf8", chunkSize = 8192, maxSize = 100 * 1024 * 1024 } = options;
 
     const stats = fs.statSync(filePath);
     const fileSize = Math.min(stats.size, maxSize);
-    
+
     let totalBytesRead = 0;
     let stopped = false;
-    let leftover = '';
-    
+    let leftover = "";
+
     try {
       while (totalBytesRead < fileSize && !stopped) {
         const remainingBytes = fileSize - totalBytesRead;
         const currentChunkSize = Math.min(chunkSize, remainingBytes);
-        
+
         const buffer = this.readFileChunk(filePath, totalBytesRead, currentChunkSize);
         if (buffer.length === 0) break;
-        
+
         totalBytesRead += buffer.length;
         const chunk = leftover + buffer.toString(encoding);
-        
+
         const isLast = totalBytesRead >= fileSize;
-        
+
         if (isLast) {
           if (!chunkProcessor(chunk, true)) {
             stopped = true;
           }
         } else {
           const lines = chunk.split(/\r?\n/);
-          leftover = lines.pop() || '';
-          const processChunk = lines.join('\n');
-          
+          leftover = lines.pop() || "";
+          const processChunk = lines.join("\n");
+
           if (processChunk && !chunkProcessor(processChunk, false)) {
             stopped = true;
           }
@@ -670,7 +622,7 @@ export class FileInfoService {
     } catch (err) {
       throw new Error(`流式读取文件失败: ${err instanceof Error ? err.message : String(err)}`);
     }
-    
+
     return { totalBytesRead, stopped };
   }
 
@@ -681,7 +633,7 @@ export class FileInfoService {
     filePath: string,
     startByte: number = 0,
     maxBytes: number = 1024 * 1024,
-    encoding: BufferEncoding = 'utf8'
+    encoding: BufferEncoding = "utf8"
   ): string {
     if (!this.isTextFile(filePath)) {
       throw new Error("指定文件不是文本文件");
@@ -691,11 +643,11 @@ export class FileInfoService {
       const stats = fs.statSync(filePath);
       const actualStartByte = Math.min(startByte, stats.size);
       const actualMaxBytes = Math.min(maxBytes, stats.size - actualStartByte);
-      
+
       if (actualMaxBytes <= 0) {
-        return '';
+        return "";
       }
-      
+
       const chunk = this.readFileChunk(filePath, actualStartByte, actualMaxBytes);
       return chunk.toString(encoding);
     } catch (err) {
