@@ -249,7 +249,6 @@ export class MainService {
                     to: path.join(fullTargetDir, path.basename(fileInfo.filePath)),
                     method: "ai_batch",
                     batch: `${batchIndex + 1}/${batches.length}`,
-                    confidence: result.confidence,
                     reasoning: result.reasoning,
                   },
                   "文件已移动"

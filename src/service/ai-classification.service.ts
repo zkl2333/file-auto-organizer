@@ -21,7 +21,7 @@ export class AIClassificationService {
   async classifyBatch(
     files: Array<{ fileName: string; description: string }>,
     knownDirs: string[]
-  ): Promise<Array<{ fileName: string; path: string; confidence: number; reasoning?: string }>> {
+  ): Promise<Array<{ fileName: string; path: string; reasoning?: string }>> {
     try {
       if (files.length === 0) return [];
 
@@ -75,18 +75,12 @@ export class AIClassificationService {
                           type: "string",
                           description: "分类目录路径",
                         },
-                        confidence: {
-                          type: "number",
-                          minimum: 0.1,
-                          maximum: 1.0,
-                          description: "置信度",
-                        },
                         reasoning: {
                           type: "string",
                           description: "分类理由",
                         },
                       },
-                      required: ["file_name", "directory_path", "confidence", "reasoning"],
+                      required: ["file_name", "directory_path", "reasoning"],
                     },
                   },
                 },
@@ -146,7 +140,6 @@ export class AIClassificationService {
             return classifications.map((item: any) => ({
               fileName: item.file_name,
               path: item.directory_path,
-              confidence: item.confidence,
               reasoning: item.reasoning,
             }));
           } catch (parseError) {
