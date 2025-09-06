@@ -24,127 +24,177 @@
 
 ## 🚀 快速开始
 
-### 方式一：Docker 部署（推荐）
-
-最简单的方式，支持所有平台：
-
-#### 需要准备
+### 准备工作
 
 - Docker 和 Docker Compose
-- OpenAI API Key
+- OpenAI API Key 或兼容接口的 API Key
 
-#### 部署步骤
+### 第一步：创建工作目录
 
-1. **创建工作目录**
+```bash
+mkdir file-auto-organizer
+cd file-auto-organizer
+mkdir logs
+```
 
-   ```bash
-   mkdir file-auto-organizer
-   cd file-auto-organizer
-   ```
+### 第二步：创建配置文件
 
-2. **创建配置文件 config.yaml**
+创建 `config.yaml` 文件：
 
-   ```yaml
-   openai:
-     api_key: "your-openai-api-key-here"
-     model: "gpt-5-nano"
+```yaml
+# AI 配置
+openai:
+  api_key: "your-api-key-here"        # 请替换为你的 API Key
+  model: "gpt-5-nano"                # 推荐模型，性价比高
+  base_url: "https://aihubmix.com/v1"  # 推荐的兼容接口
 
-   directories:
-     root_dir: "/data/分类库"
-     incoming_dir: "/data/待分类"
+# 目录配置  
+directories:
+  root_dir: "/data/分类库"             # 分类后文件存储位置
+  incoming_dir: "/data/待分类"         # 待分类文件位置
 
-   cron:
-     schedule: "0 * * * *"
-   ```
+# 定时任务配置
+cron:
+  schedule: "0 * * * *"               # 每小时执行一次
 
-3. **创建 docker-compose.yaml**
+# 其他配置
+logging:
+  level: "info"
+  dir: "/app/logs"
 
-   ```yaml
-   services:
-     file-organizer:
-       image: docker.io/zkl2333/file-auto-organizer:latest
-       container_name: file-organizer
-       restart: unless-stopped
-       volumes:
-         - ~/Downloads:/data:rw
-         - ./logs:/app/logs:rw
-         - ./config.yaml:/app/config.yaml:ro
-   ```
+scan:
+  max_depth: 3
+  similarity_threshold: 0.65
 
-4. **启动服务**
+ai:
+  batch_size: 5
+```
 
-   ```bash
-   docker compose up -d
-   ```
+**OpenAI 兼容接口推荐：**
+- 使用 `https://aihubmix.com/v1` 作为 `base_url`
+- 一站式对接各种大模型。让开发更智能、更高效。
+- 注册地址：[console.aihubmix.com](https://console.aihubmix.com?aff=SWnZ)
 
-5. **查看运行状态**
+## Docker 运行方式
 
-   ```bash
-   # 查看日志
-   docker compose logs -f
+### 方式一：定时自动运行（推荐）
 
-   # 查看服务状态
-   docker compose ps
-   ```
+适合需要持续监控和整理文件的场景。
 
-### 方式二：本地运行
+**创建 docker-compose.yaml：**
 
-适合需要自定义配置的用户：
+```yaml
+services:
+  file-organizer:
+    image: docker.io/zkl2333/file-auto-organizer:latest
+    container_name: file-organizer
+    restart: unless-stopped
+    volumes:
+      # 文件目录挂载（根据实际情况修改路径）
+      - ~/Downloads:/data:rw               # 下载文件夹
+      - ./logs:/app/logs:rw                # 日志目录
+      - ./config.yaml:/app/config.yaml:ro # 配置文件
+    environment:
+      - TZ=Asia/Shanghai                   # 时区设置
+    working_dir: /app
+```
 
-#### 环境要求
+**启动服务：**
 
-- [Bun](https://bun.sh/) 1.0+
-- OpenAI API Key
+```bash
+# 启动定时服务
+docker compose up -d
 
-#### 安装步骤
+# 查看运行状态
+docker compose ps
 
-1. **安装 Bun**
+# 查看实时日志
+docker compose logs -f
 
-   ```bash
-   # macOS/Linux
-   curl -fsSL https://bun.sh/install | bash
+# 查看最近日志
+docker compose logs --tail=50
+```
 
-   # Windows (PowerShell)
-   powershell -c "irm bun.sh/install.ps1 | iex"
-   ```
+**服务管理：**
 
-2. **克隆项目**
+```bash
+# 停止服务
+docker compose down
 
-   ```bash
-   git clone https://github.com/zkl2333/file-auto-organizer.git
-   cd file-auto-organizer
-   ```
+# 重启服务  
+docker compose restart
 
-3. **安装依赖**
+# 更新镜像
+docker compose pull && docker compose up -d
+```
 
-   ```bash
-   bun install
-   ```
+### 方式二：单次手动运行
 
-4. **配置应用**
+适合偶尔整理文件或测试效果的场景。
 
-   ```bash
-   # 复制配置示例
-   cp config.yaml.example config.yaml
+**使用专用配置文件（推荐）：**
 
-   # 编辑配置文件，设置你的 API Key 和目录
-   ```
+项目提供了 `docker-compose.once.yaml` 文件：
 
-5. **运行应用**
+```bash
+# 立即执行一次整理
+docker compose -f docker-compose.once.yaml up
 
-   ```bash
-   # 单次运行
-   bun run once
+# 模拟运行（不移动文件，查看分类效果）
+docker compose -f docker-compose.once.yaml run --rm file-classifier-once \
+  bun run dist/index.js --dry-run --once
+```
 
-   # 模拟运行（不实际移动文件）
-   bun run dry
-   ```
+**使用 docker run 命令：**
 
-### 使用示例
+```bash
+# 单次运行
+docker run --rm \
+  -v ~/Downloads:/data:rw \
+  -v ./logs:/app/logs:rw \
+  -v ./config.yaml:/app/config.yaml:ro \
+  docker.io/zkl2333/file-auto-organizer:latest \
+  bun run dist/index.js --once
 
-**方式 1：自动创建分类**
-直接把文件丢到 `~/Downloads/待分类/`，程序会分析内容并自动创建类似这样的结构：
+# 模拟运行（推荐先用这个测试）
+docker run --rm \
+  -v ~/Downloads:/data:rw \
+  -v ./logs:/app/logs:rw \
+  -v ./config.yaml:/app/config.yaml:ro \
+  docker.io/zkl2333/file-auto-organizer:latest \
+  bun run dist/index.js --dry-run --once
+```
 
+
+**目录挂载示例：**
+
+```bash
+# 整理下载文件夹
+-v ~/Downloads:/data:rw
+
+# 整理桌面文件
+-v ~/Desktop:/data:rw
+
+# 整理指定目录
+-v /path/to/your/files:/data:rw
+
+# 多目录挂载（高级用法）
+-v ~/Downloads:/data/downloads:rw \
+-v ~/Desktop:/data/desktop:rw
+```
+
+## 使用建议
+
+### 首次使用流程
+
+1. **先模拟运行**：使用 `--dry-run` 参数查看分类效果
+2. **检查日志**：确认分类逻辑符合预期  
+3. **小范围测试**：先在少量文件上测试
+4. **正式使用**：确认无误后进行正式整理
+
+### 目录结构示例
+
+**自动创建分类：**
 ```
 ~/Downloads/分类库/
 ├── 工作文档/
@@ -152,9 +202,7 @@
 └── 个人文件/
 ```
 
-**方式 2：参考已有分类**
-如果你已经有文件夹结构，程序会优先匹配到现有分类：
-
+**参考已有分类：**
 ```
 ~/Downloads/分类库/
 ├── 工作文档/
@@ -168,92 +216,57 @@
     └── 账单/
 ```
 
-**灵活配置目录**
-不只是下载文件夹，你可以整理任意目录：
-
-- 桌面文件：`Desktop` → `Desktop/整理后`
-- 工作目录：`~/Documents/乱七八糟` → `~/Documents/分类库`
-
-### 常用命令
-
-```bash
-# 查看运行状态
-docker compose ps
-
-# 查看实时日志
-docker compose logs -f
-
-# 重启服务
-docker compose restart
-
-# 停止服务
-docker compose down
-
-# 更新镜像
-docker compose pull && docker compose up -d
-```
-
-### 本地运行命令
-
-```bash
-# 单次运行
-bun run once
-
-# 模拟运行（不移动文件，用于测试）
-bun run dry
-
-# 后台运行（定时模式）
-bun start
-```
-
 ## 配置说明
 
-主要配置项：
+### 目录配置
+
+配置文件中的目录路径是相对于容器内的，需要与 Docker 挂载对应：
+
+| Docker 挂载 | 配置文件路径 | 实际效果 |
+|------------|-------------|---------|
+| `~/Downloads:/data:rw` | `root_dir: "/data/分类库"` | 文件分类到 `~/Downloads/分类库/` |
+| `~/Downloads:/data:rw` | `incoming_dir: "/data/待分类"` | 扫描 `~/Downloads/待分类/` 目录 |
+
+### 定时任务配置
 
 ```yaml
-openai:
-  api_key: "your-api-key" # 必填
-  model: "gpt-5-nano" # AI模型
-  base_url: "" # 兼容其他API服务，可选
-
-directories:
-  root_dir: "./分类库" # 分类后文件存储位置
-  incoming_dir: "./待分类" # 待分类文件位置
-
 cron:
-  schedule: "0 * * * *" # 定时规则（每小时）
-  # "*/5 * * * *" - 每5分钟
-  # "0 0 * * *" - 每天午夜
-
-logging:
-  level: "info" # debug, info, warn, error
-  dir: "./logs" # 日志目录
-
-scan:
-  max_depth: 3 # 扫描深度
-  similarity_threshold: 0.65 # 相似度阈值
-
-ai:
-  batch_size: 5 # 批量处理数量
+  schedule: "0 * * * *"    # 每小时
+  # schedule: "*/5 * * * *"  # 每5分钟
+  # schedule: "0 2 * * *"    # 每天凌晨2点
+  # schedule: "0 8,20 * * *" # 每天8点和20点
 ```
 
-**不同使用场景的目录配置：**
+## 本地运行
 
-- 下载文件夹：`incoming_dir: "C:/Users/username/Downloads"`
-- 桌面整理：`incoming_dir: "C:/Users/username/Desktop"`
+如果需要本地开发或调试：
 
-## 📋 常见问题
+```bash
+# 安装 Bun
+curl -fsSL https://bun.sh/install | bash
+
+# 克隆项目
+git clone https://github.com/zkl2333/file-auto-organizer.git
+cd file-auto-organizer
+
+# 安装依赖
+bun install
+
+# 配置文件
+cp config.yaml.example config.yaml
+# 编辑 config.yaml 设置你的 API Key
+
+# 运行
+bun run once    # 单次运行
+bun run dry     # 模拟运行
+bun start       # 后台定时运行
+```
+
+## 常见问题
 
 ### Q: 支持哪些文件类型？
 
-A: 支持几乎所有常见文件类型，包括：
-
-- 文档：PDF, Word, Excel, PowerPoint, TXT, Markdown 等
-- 图片：JPG, PNG, GIF, SVG, WebP 等
-- 视频：MP4, AVI, MOV, MKV 等
-- 音频：MP3, WAV, FLAC 等
-- 压缩包：ZIP, RAR, 7Z 等
-- 代码文件：JS, TS, Python, Java 等
+A: 支持几乎所有常见文件类型，包括文档、图片、视频、音频、压缩包、代码文件等。
 
 ### Q: AI 分类准确吗？
 
@@ -267,10 +280,6 @@ A: 程序只会移动指定 `incoming_dir` 目录中的文件，不会触碰其�
 
 A: 可以预先创建文件夹结构，程序会优先匹配到现有分类。也可以通过修改 AI 提示词来调整分类策略。
 
-## 🤝 贡献
-
-欢迎提交 Issue 和 Pull Request！
-
-## 📄 许可证
+## 许可证
 
 MIT License

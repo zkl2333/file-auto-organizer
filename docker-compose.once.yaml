@@ -1,8 +1,7 @@
 services:
-  file-classifier:
+  file-classifier-once:
     image: docker.io/zkl2333/file-auto-organizer:latest
-    container_name: file-classifier
-    restart: unless-stopped
+    container_name: file-classifier-once
     volumes:
       # 宿主机下载目录挂载到容器内 /data
       - ~/Downloads:/data:rw
@@ -11,3 +10,5 @@ services:
       # 配置文件挂载
       - ./config.yaml:/app/config.yaml:ro
     working_dir: /app
+    # 覆盖默认命令，单次运行
+    command: ["bun", "run", "dist/index.js", "--once"]
