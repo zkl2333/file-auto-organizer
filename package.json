@@ -25,6 +25,7 @@
   },
   "homepage": "https://github.com/zkl2333/file-auto-organizer#readme",
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.17.5",
     "@types/js-yaml": "^4.0.9",
     "exiftool-vendored": "^30.4.0",
     "fast-levenshtein": "^3.0.0",
@@ -41,7 +42,9 @@
     "bun-types": "latest",
     "typescript": "^5.6.2"
   },
-  "trustedDependencies": ["exiftool-vendored"],
+  "trustedDependencies": [
+    "exiftool-vendored"
+  ],
   "engines": {
     "bun": ">=1.0.0"
   }
