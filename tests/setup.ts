@@ -22,12 +22,15 @@ afterAll(async () => {
 });
 
 // 导出测试工具函数
-export function createTestFile(path: string, content: string): Promise<number> {
-  return Bun.write(path, content);
+import { promises as fs } from 'fs';
+
+export async function createTestFile(path: string, content: string): Promise<number> {
+  await fs.writeFile(path, content);
+  return content.length;
 }
 
 export function removeTestFile(path: string): Promise<void> {
-  return Bun.unlink(path).catch(() => {
+  return fs.unlink(path).catch(() => {
     // 文件不存在时忽略错误
   });
 }
