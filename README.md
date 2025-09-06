@@ -94,9 +94,6 @@ services:
       - ~/Downloads:/data:rw               # 下载文件夹
       - ./logs:/app/logs:rw                # 日志目录
       - ./config.yaml:/app/config.yaml:ro # 配置文件
-    environment:
-      - TZ=Asia/Shanghai                   # 时区设置
-    working_dir: /app
 ```
 
 **启动服务：**
