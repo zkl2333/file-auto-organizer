@@ -1,0 +1,32 @@
+# File Auto Organizer 配置示例
+# 复制此文件为 config.yaml 并修改相应配置
+
+openai:
+  api_key: "your-openai-api-key-here"  # 必填：OpenAI API密钥
+  model: "gpt-5-nano" # AI模型选择
+  base_url: "https://aihubmix.com/v1" # 可选：兼容其他API服务
+
+directories:
+  root_dir: "./分类库"                  # 分类后文件存储位置
+  incoming_dir: "./待分类"              # 待分类文件位置
+
+cron:
+  schedule: "0 * * * *"                # 定时执行规则（每小时）
+  # 示例：
+  # "*/5 * * * *" - 每5分钟
+  # "0 0 * * *"   - 每天午夜
+
+logging:
+  level: "info"                        # 日志级别: debug, info, warn, error
+  dir: "./logs"                        # 日志文件目录
+
+scan:
+  max_depth: 3                         # 目录扫描最大深度
+  similarity_threshold: 0.65           # 文件相似度阈值
+
+ai:
+  batch_size: 5                        # AI批量处理文件数量
+
+file_operations:
+  max_retries: 3                       # 文件操作最大重试次数
+  retry_delay_base: 1000               # 重试延迟基数（毫秒）

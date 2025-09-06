@@ -1,0 +1,10 @@
+{
+  // TypeScript 配置
+  "typescript.preferences.includePackageJsonAutoImports": "auto",
+  "typescript.suggest.autoImports": true,
+  
+  // 文件关联 - 项目特定文件类型
+  "files.associations": {
+    "bunfig.toml": "toml"
+  }
+}

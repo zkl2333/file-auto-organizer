@@ -1,25 +1,24 @@
-FROM node:22-alpine
+FROM oven/bun:1.2-alpine
 
 # 设置时区环境变量
 ENV TZ=Asia/Shanghai
+ENV NODE_ENV=production
 
 # 安装时区数据和Perl（exiftool-vendored依赖）
 RUN apk add --no-cache tzdata perl
 
 WORKDIR /app
 
-# 仅复制包管理文件并安装依赖（包含 dev，用于构建）
-COPY package*.json ./
-RUN npm install
+# 复制包管理文件并安装依赖
+COPY package.json bun.lockb* ./
+RUN bun install --frozen-lockfile --production
 
-# 复制 ts 配置与源码
+# 复制 TypeScript 配置与源码
 COPY tsconfig.json ./
 COPY ./src ./src
 
-# 构建并移除 dev 依赖
-RUN npm run build && npm prune --omit=dev
+# 构建项目
+RUN bun run build
 
-ENV NODE_ENV=production
-
-# 启动命令
-CMD ["node", "dist/index.js"]
+# 启动命令 - 直接运行构建后的文件
+CMD ["bun", "run", "dist/index.js"]

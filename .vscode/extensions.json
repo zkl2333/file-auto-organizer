@@ -1,0 +1,11 @@
+{
+  "recommendations": [
+    // 项目必需扩展
+    "oven.bun-vscode",
+    "tamasfe.even-better-toml"
+  ],
+  "unwantedRecommendations": [
+    "ms-vscode.node-debug",
+    "ms-vscode.node-debug2"
+  ]
+}

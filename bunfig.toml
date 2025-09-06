@@ -1,0 +1,29 @@
+# Bun 配置文件
+# 参考: https://bun.sh/docs/runtime/bunfig
+
+[install]
+# 安装配置
+registry = "https://registry.npmjs.org/"
+exact = false
+dryRun = false
+
+[install.cache]
+# 缓存配置
+dir = "~/.bun/install/cache"
+
+[run]
+# 运行时配置
+# shell = "bash"  # 在Windows上注释掉，使用默认shell
+
+[test]
+# 测试配置
+preload = ["./tests/setup.ts"]
+coverage = true
+timeout = 10000
+
+[build]
+# 构建配置
+target = "bun"
+format = "esm"
+minify = false
+sourcemap = "external"

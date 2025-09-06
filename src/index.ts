@@ -1,4 +1,4 @@
-import cron from "node-cron";
+import cron, { ScheduledTask } from "node-cron";
 import { systemLogger as logger, cleanupLogFiles } from "./logger.js";
 import { config } from "./config.js";
 import { MainService } from "./service/main.service.js";
@@ -10,7 +10,7 @@ const { OPENAI_API_KEY, CRON_SCHEDULE, RUN_ONCE } = config;
 /**
  * 注册所有清理函数到进程管理器
  */
-function setupProcessCleanup(cronTask?: cron.ScheduledTask) {
+function setupProcessCleanup(cronTask?: ScheduledTask) {
   // 如果有定时任务，注册停止函数
   if (cronTask) {
     processManager.registerCleanup(() => {

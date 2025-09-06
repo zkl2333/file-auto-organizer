@@ -1,31 +1,30 @@
 /**
- * FileInfoService 单元测试 - ESM版本
- * 使用现代Jest的原生ESM支持
+ * FileInfoService 单元测试
  */
 
-import { jest } from '@jest/globals';
+import { test, describe, expect, beforeAll, afterAll, mock } from "bun:test";
 import fs from 'node:fs';
 import path from 'node:path';
 
-// ESM模拟配置
-jest.unstable_mockModule('exiftool-vendored', () => ({
+// Bun mock配置
+mock.module('exiftool-vendored', () => ({
   exiftool: {
-    read: jest.fn<() => Promise<any>>().mockResolvedValue({}),
-    end: jest.fn<() => Promise<void>>().mockResolvedValue(undefined)
+    read: mock(() => Promise.resolve({})),
+    end: mock(() => Promise.resolve())
   }
 }));
 
-jest.unstable_mockModule('../../src/logger.js', () => ({
+mock.module('../../src/logger.js', () => ({
   fileInfoLogger: {
-    info: jest.fn(),
-    warn: jest.fn(),  
-    error: jest.fn(),
-    debug: jest.fn()
+    info: mock(),
+    warn: mock(),  
+    error: mock(),
+    debug: mock()
   }
 }));
 
-// 动态导入被模拟的模块
-const { FileInfoService, TEXT_FILE_CONFIG } = await import('../../src/service/file-info.service.js');
+// 导入被模拟的模块
+import { FileInfoService } from '../../src/service/file-info.service.js';
 
 describe('FileInfoService 核心功能测试', () => {
   const fixturesDir = path.join(process.cwd(), 'tests', 'fixtures');

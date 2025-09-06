@@ -1,25 +1,25 @@
 {
   "name": "file-auto-organizer",
   "version": "1.0.0",
-  "description": "",
+  "description": "File Auto Organizer",
   "main": "dist/index.js",
   "type": "module",
   "scripts": {
-    "build": "tsc -p .",
-    "start": "node dist/index.js",
-    "dev": "ts-node --esm src/index.ts",
-    "dry": "node dist/index.js --dry-run --once",
-    "once": "node dist/index.js --once",
-    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
-    "test:watch": "node --experimental-vm-modules node_modules/jest/bin/jest.js --watch",
-    "test:coverage": "node --experimental-vm-modules node_modules/jest/bin/jest.js --coverage"
+    "build": "bun build src/index.ts --outdir dist --target bun --format esm",
+    "start": "bun run dist/index.js",
+    "dev": "bun run src/index.ts",
+    "dry": "bun run dist/index.js --dry-run --once",
+    "once": "bun run dist/index.js --once",
+    "test": "bun test",
+    "test:watch": "bun test --watch",
+    "test:coverage": "bun test --coverage"
   },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/zkl2333/file-auto-organizer.git"
   },
-  "author": "",
-  "license": "ISC",
+  "author": "zkl2333",
+  "license": "MIT",
   "bugs": {
     "url": "https://github.com/zkl2333/file-auto-organizer/issues"
   },
@@ -36,15 +36,13 @@
   },
   "devDependencies": {
     "@types/fast-levenshtein": "^0.0.4",
-    "@types/jest": "^30.0.0",
     "@types/node": "^20.14.11",
     "@types/node-cron": "^3.0.11",
-    "jest": "^30.1.2",
-    "ts-jest": "^29.4.1",
-    "ts-node": "^10.9.2",
+    "bun-types": "latest",
     "typescript": "^5.6.2"
   },
-  "volta": {
-    "node": "22.19.0"
+  "trustedDependencies": ["exiftool-vendored"],
+  "engines": {
+    "bun": ">=1.0.0"
   }
 }

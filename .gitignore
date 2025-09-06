@@ -1,14 +1,123 @@
-node_modules
-dist
-logs
-coverage
-.env
-!.env.example
-.DS_Store
+# ===== 依赖和包管理 =====
+node_modules/
+.pnp
+.pnp.js
+
+# Bun 相关文件
+bun.lockb
+
+# 其他包管理器锁文件
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# ===== 构建产物 =====
+dist/
+build/
+*.tsbuildinfo
+
+# ===== 日志文件 =====
+logs/
+*.log
 npm-debug.log*
+yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
-package-lock.json
+lerna-debug.log*
+.pnpm-debug.log*
 
-# 配置文件（避免提交敏感信息）
+# ===== 测试和覆盖率 =====
+coverage/
+*.lcov
+.nyc_output/
+lib-cov/
+
+# ===== 环境配置 =====
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+!.env.example
+
+# 应用配置文件（包含敏感信息）
 config.yaml
+!config.yaml.example
+
+# ===== 缓存目录 =====
+.cache/
+.temp/
+.tmp/
+*.tmp
+*.temp
+
+# Bun 缓存
+.bun/
+
+# ===== 系统文件 =====
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Thumbs.db
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+*~
+
+# ===== IDE 和编辑器 =====
+# VSCode  
+.vscode/
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/extensions.json
+
+# JetBrains IDEs
+.idea/
+*.swp
+*.swo
+
+# Vim
+*~
+*.swp
+*.swo
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+
+# ===== 运行时文件 =====
+# 进程ID
+*.pid
+*.seed
+*.pid.lock
+
+# 调试文件
+*.tlog
+*.btm.cs
+*.rsp
+*.cache
+
+# ===== 其他 =====
+# 备份文件
+*.bak
+*.backup
+*.old
+
+# 压缩文件
+*.tar
+*.zip
+*.7z
+*.rar
+
+# 本地测试文件
+test-output/
+*.test.local.*
