@@ -280,6 +280,37 @@ A: 程序只会移动指定 `incoming_dir` 目录中的文件，不会触碰其�
 
 A: 可以预先创建文件夹结构，程序会优先匹配到现有分类。也可以通过修改 AI 提示词来调整分类策略。
 
+### Q: 定时任务错过执行怎么办？
+
+A: 如果日志中出现 `[NODE-CRON] [WARN] missed execution`，这通常是**容器休眠导致**的，不是代码问题。
+
+**快速诊断：**
+```bash
+# 运行诊断脚本
+./diagnose.sh
+```
+
+**解决方案（推荐优先级）：**
+
+1. **使用外部调度器**：
+   ```bash
+   docker-compose -f docker-compose.external-cron.yaml up -d
+   ```
+   使用 Ofelia 作为外部调度器，避免容器休眠问题。
+
+2. **使用宿主机 crontab**：
+   ```bash
+   crontab -e
+   # 添加: 0 4 * * * docker exec file-classifier bun run dist/index.js --once
+   ```
+
+3. **添加监控和健康检查**：
+   ```bash
+   docker-compose -f docker-compose.monitoring.yaml up -d
+   ```
+
+详细说明请查看 [CONTAINER_SLEEP_ISSUE.md](./CONTAINER_SLEEP_ISSUE.md)
+
 ## 许可证
 
 MIT License

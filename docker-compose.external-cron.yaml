@@ -1,0 +1,81 @@
+# 使用外部定时调度的 Docker Compose 配置
+# 使用 Ofelia 进行定时任务调度，避免容器休眠问题
+# 使用方法: docker-compose -f docker-compose.external-cron.yaml up -d
+
+services:
+  # 应用容器 - 保持运行，不使用内部 cron
+  file-classifier:
+    image: docker.io/zkl2333/file-auto-organizer:latest
+    container_name: file-classifier
+    restart: unless-stopped
+    
+    # 修改启动命令 - 保持容器运行但不启动定时任务
+    # 使用 sleep 保持容器存活，等待外部调度
+    command: sleep infinity
+    
+    healthcheck:
+      test: ["CMD", "sh", "-c", "test -d /app"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    
+    volumes:
+      - ~/Downloads:/data:rw
+      - ./logs:/app/logs:rw
+      - ./config.yaml:/app/config.yaml:ro
+    
+    working_dir: /app
+    
+    environment:
+      - TZ=Asia/Shanghai
+      - NODE_ENV=production
+    
+    # Ofelia 标签配置 - 定义定时任务
+    labels:
+      # 启用 Ofelia
+      ofelia.enabled: "true"
+      # 定时任务名称
+      ofelia.job-exec.file-classifier-job.schedule: "0 4 * * *"  # 每天凌晨 4 点（容器时区）
+      # 执行命令
+      ofelia.job-exec.file-classifier-job.command: "bun run dist/index.js --once"
+      # 无输出时不记录日志
+      ofelia.job-exec.file-classifier-job.no-overlap: "true"
+  
+  # Ofelia 调度器 - 外部定时任务管理
+  ofelia:
+    image: mcuadros/ofelia:latest
+    container_name: file-classifier-scheduler
+    restart: unless-stopped
+    
+    depends_on:
+      - file-classifier
+    
+    # 启动 daemon 模式，监听 Docker 容器标签
+    command: daemon --docker
+    
+    volumes:
+      # 需要访问 Docker socket 来执行容器命令
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    
+    environment:
+      - TZ=Asia/Shanghai
+    
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+    
+    labels:
+      - "com.docker.compose.project=file-auto-organizer"
+
+# 使用说明:
+# 1. 启动服务: docker-compose -f docker-compose.external-cron.yaml up -d
+# 2. 查看日志: docker-compose -f docker-compose.external-cron.yaml logs -f
+# 3. 查看 Ofelia 调度: docker logs file-classifier-scheduler
+# 4. 测试立即执行: docker exec file-classifier bun run dist/index.js --once
+#
+# 优势:
+# - Ofelia 在独立容器中运行，不受应用容器状态影响
+# - 即使应用容器重启，定时任务也能正常触发
+# - 避免了 node-cron 的休眠问题
