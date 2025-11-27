@@ -1,6 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import yaml from "js-yaml";
+import Fastify, { FastifyRequest, FastifyReply } from "fastify";
+import cors from "@fastify/cors";
 import { config, CONFIG_BASE_DIR, findConfigFile } from "./config.js";
 import { MainService } from "./service/main.service.js";
 import { FileScanService } from "./service/file-scan.service.js";
@@ -124,7 +126,7 @@ function updateConfigYaml(yamlContent: string) {
     
     return {
       success: true,
-      message: "配置已保存，请重启服务使配置生效",
+      message: "配置已保存,请重启服务使配置生效",
     };
   } catch (error) {
     logger.error({ error }, "更新配置文件失败");
@@ -169,7 +171,7 @@ function updateConfigJson(configJson: Record<string, any>) {
 /**
  * 触发任务执行
  */
-async function triggerTask() {
+async function triggerTask(dryRun: boolean = false) {
   if (isRunning) {
     return {
       success: false,
@@ -183,10 +185,10 @@ async function triggerTask() {
     const service = mainServiceInstance || new MainService();
 
     // 在后台执行任务，不阻塞响应
-    service.runOnce()
+    service.runOnce(dryRun)
       .then(() => {
         isRunning = false;
-        logger.info("手动触发的任务执行完成");
+        logger.info(`手动触发的任务执行完成${dryRun ? "(dry-run)" : ""}`);
       })
       .catch((error) => {
         isRunning = false;
@@ -195,7 +197,7 @@ async function triggerTask() {
 
     return {
       success: true,
-      message: "任务已触发，正在后台执行",
+      message: `任务已触发，正在后台执行${dryRun ? "(dry-run模式)" : ""}`,
     };
   } catch (error) {
     isRunning = false;
@@ -209,89 +211,145 @@ async function triggerTask() {
 }
 
 /**
- * 启动HTTP服务器
+ * 启动HTTP服务器 (使用 Fastify)
  */
-export function startServer(mainService?: MainService) {
+export async function startServer(mainService?: MainService) {
   if (mainService) {
     mainServiceInstance = mainService;
   }
-  const server = Bun.serve({
-    port: PORT,
-    async fetch(req) {
-      const url = new URL(req.url);
-      const method = req.method;
 
-      // CORS headers
-      const headers = {
-        "Content-Type": "application/json",
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type",
-      };
-
-      // 处理OPTIONS请求
-      if (method === "OPTIONS") {
-        return new Response(null, { status: 204, headers });
-      }
-
-      try {
-        // 路由处理
-        if (url.pathname === "/api/stats" && method === "GET") {
-          const stats = await getStats();
-          return new Response(JSON.stringify(stats), { headers });
-        }
-
-        if (url.pathname === "/api/logs" && method === "GET") {
-          const type = url.searchParams.get("type") || "system";
-          const limit = parseInt(url.searchParams.get("limit") || "200");
-          const logs = getLogs(type, limit);
-          return new Response(JSON.stringify({ logs }), { headers });
-        }
-
-        if (url.pathname === "/api/trigger" && method === "POST") {
-          const result = await triggerTask();
-          return new Response(JSON.stringify(result), { headers });
-        }
-
-        if (url.pathname === "/api/config" && method === "GET") {
-          const configData = getConfig();
-          return new Response(JSON.stringify(configData), { headers });
-        }
-
-        if (url.pathname === "/api/config" && method === "PUT") {
-          const yamlContent = await req.text();
-          const result = updateConfigYaml(yamlContent);
-          return new Response(JSON.stringify(result), { headers });
-        }
-
-        if (url.pathname === "/api/config" && method === "PATCH") {
-          const configJson = await req.json() as Record<string, unknown>;
-          const result = updateConfigJson(configJson as Record<string, any>);
-          return new Response(JSON.stringify(result), { headers });
-        }
-
-        // 404
-        return new Response(JSON.stringify({ error: "Not Found" }), {
-          status: 404,
-          headers,
-        });
-      } catch (error) {
-        logger.error({ error, path: url.pathname }, "API请求处理失败");
-        return new Response(
-          JSON.stringify({
-            error: "Internal Server Error",
-            message: error instanceof Error ? error.message : String(error),
-          }),
-          {
-            status: 500,
-            headers,
-          }
-        );
-      }
-    },
+  const server = Fastify({
+    logger: false, // 使用自定义 pino logger
   });
 
-  logger.info({ port: PORT }, "HTTP服务器已启动");
+  // 注册 CORS
+  await server.register(cors, {
+    origin: "*",
+    methods: ["GET", "POST", "PUT", "PATCH", "OPTIONS"],
+    allowedHeaders: ["Content-Type"],
+  });
+
+  // GET /api/stats
+  server.get("/api/stats", async (request: FastifyRequest, reply: FastifyReply) => {
+    try {
+      const stats = await getStats();
+      reply.send(stats);
+    } catch (error) {
+      logger.error({ error }, "获取统计信息失败");
+      reply.status(500).send({
+        error: "Internal Server Error",
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  });
+
+  // GET /api/logs
+  server.get<{
+    Querystring: { type?: string; limit?: string };
+  }>(
+    "/api/logs",
+    async (request: FastifyRequest<{ Querystring: { type?: string; limit?: string } }>, reply: FastifyReply) => {
+      try {
+        const type = request.query.type || "system";
+        const limit = parseInt(request.query.limit || "200");
+        const logs = getLogs(type, limit);
+        reply.send({ logs });
+      } catch (error) {
+        logger.error({ error }, "读取日志失败");
+        reply.status(500).send({
+          error: "Internal Server Error",
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+  );
+
+  // POST /api/trigger
+  server.post<{
+    Querystring: { dryRun?: string };
+  }>(
+    "/api/trigger",
+    async (request: FastifyRequest<{ Querystring: { dryRun?: string } }>, reply: FastifyReply) => {
+      try {
+        const dryRun = request.query.dryRun === "true";
+        const result = await triggerTask(dryRun);
+        reply.send(result);
+      } catch (error) {
+        logger.error({ error }, "触发任务失败");
+        reply.status(500).send({
+          error: "Internal Server Error",
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+  );
+
+  // GET /api/config
+  server.get("/api/config", async (request: FastifyRequest, reply: FastifyReply) => {
+    try {
+      const configData = getConfig();
+      reply.send(configData);
+    } catch (error) {
+      logger.error({ error }, "读取配置失败");
+      reply.status(500).send({
+        error: "Internal Server Error",
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  });
+
+  // PUT /api/config (YAML格式)
+  server.put<{
+    Body: string;
+  }>(
+    "/api/config",
+    {
+      config: {
+        rawBody: true,
+      },
+    },
+    async (request: FastifyRequest<{ Body: string }>, reply: FastifyReply) => {
+      try {
+        const yamlContent =
+          typeof request.body === "string"
+            ? request.body
+            : String(request.body);
+        const result = updateConfigYaml(yamlContent);
+        reply.send(result);
+      } catch (error) {
+        logger.error({ error }, "更新配置失败");
+        reply.status(500).send({
+          error: "Internal Server Error",
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+  );
+
+  // PATCH /api/config (JSON格式)
+  server.patch<{
+    Body: Record<string, any>;
+  }>("/api/config", async (request: FastifyRequest<{ Body: Record<string, any> }>, reply: FastifyReply) => {
+    try {
+      const result = updateConfigJson(request.body);
+      reply.send(result);
+    } catch (error) {
+      logger.error({ error }, "更新配置失败");
+      reply.status(500).send({
+        error: "Internal Server Error",
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  });
+
+  // 启动服务器
+  try {
+    await server.listen({ port: PORT, host: "0.0.0.0" });
+    logger.info({ port: PORT }, "HTTP服务器已启动");
+  } catch (error) {
+    logger.error({ error }, "启动HTTP服务器失败");
+    throw error;
+  }
+
   return server;
 }
-

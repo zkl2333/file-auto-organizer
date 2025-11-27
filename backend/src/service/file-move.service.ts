@@ -3,7 +3,7 @@ import path from "node:path";
 import { fileMoveLogger } from "../logger.js";
 import { config } from "../config.js";
 
-const { FILE_MAX_RETRIES, FILE_RETRY_DELAY_BASE, DRY_RUN } = config;
+const { FILE_MAX_RETRIES, FILE_RETRY_DELAY_BASE } = config;
 
 export class FileMoveService {
   /**
@@ -143,14 +143,14 @@ export class FileMoveService {
   /**
    * 移动文件到目标目录
    */
-  async moveFile(file: string, targetDir: string): Promise<void> {
+  async moveFile(file: string, targetDir: string, dryRun: boolean = false): Promise<void> {
     // 归一化：若 targetDir 末段等于文件名，剥离末段，避免目录/文件同名嵌套
     const fileBaseName = path.basename(file);
     const targetDirBase = path.basename(targetDir);
     const normalizedTargetDir = targetDirBase === fileBaseName ? path.dirname(targetDir) : targetDir;
     const targetPath = path.join(normalizedTargetDir, fileBaseName);
 
-    if (DRY_RUN) {
+    if (dryRun) {
       fileMoveLogger.info(`[dry-run] ${file} -> ${targetDir}`);
       return;
     }

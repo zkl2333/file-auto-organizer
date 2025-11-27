@@ -2,24 +2,24 @@
  * FileInfoService 单元测试
  */
 
-import { test, describe, expect, beforeAll, afterAll, mock } from "bun:test";
+import { test, describe, expect, beforeAll, afterAll, vi } from "vitest";
 import fs from 'node:fs';
 import path from 'node:path';
 
-// Bun mock配置
-mock.module('exiftool-vendored', () => ({
+// Vitest mock配置
+vi.mock('exiftool-vendored', () => ({
   exiftool: {
-    read: mock(() => Promise.resolve({})),
-    end: mock(() => Promise.resolve())
+    read: vi.fn(() => Promise.resolve({})),
+    end: vi.fn(() => Promise.resolve())
   }
 }));
 
-mock.module('../../src/logger.js', () => ({
+vi.mock('../../src/logger.js', () => ({
   fileInfoLogger: {
-    info: mock(),
-    warn: mock(),  
-    error: mock(),
-    debug: mock()
+    info: vi.fn(),
+    warn: vi.fn(),  
+    error: vi.fn(),
+    debug: vi.fn()
   }
 }));
 

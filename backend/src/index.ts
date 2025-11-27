@@ -6,7 +6,7 @@ import { cleanupFileInfo, cleanupFileInfoSync } from "./service/file-info.servic
 import { processManager } from "./process-manager.js";
 import { startServer } from "./server.js";
 
-const { OPENAI_API_KEY, CRON_SCHEDULE, RUN_ONCE } = config;
+const { OPENAI_API_KEY, CRON_SCHEDULE } = config;
 
 /**
  * 注册所有清理函数到进程管理器
@@ -76,35 +76,16 @@ async function startScheduledMode(mainService: MainService): Promise<void> {
   logger.info("定时任务已启动，等待执行...");
 
   // 启动HTTP服务器，传入mainService实例
-  const server = startServer(mainService);
+  const server = await startServer(mainService);
 
   // 设置清理逻辑
   setupProcessCleanup(task);
   
   // 注册服务器关闭清理
-  processManager.registerCleanup(() => {
+  processManager.registerCleanup(async () => {
     logger.info("正在关闭HTTP服务器...");
-    server.stop();
+    await server.close();
   }, "关闭HTTP服务器");
-}
-
-/**
- * 启动单次运行模式
- */
-async function startOnceMode(mainService: MainService): Promise<void> {
-  logger.info("单次运行模式");
-
-  // 设置清理逻辑（无定时任务）
-  setupProcessCleanup();
-
-  try {
-    await mainService.runOnce();
-    logger.info("单次运行完成");
-    process.exit(0);
-  } catch (error) {
-    logger.error({ error: error instanceof Error ? error.message : String(error) }, "单次运行失败");
-    process.exit(1);
-  }
 }
 
 /**
@@ -120,35 +101,17 @@ async function main(): Promise<void> {
   const mainService = new MainService();
 
   try {
-    if (RUN_ONCE) {
-      await startOnceMode(mainService);
-    } else {
-      await startScheduledMode(mainService);
-    }
+    await startScheduledMode(mainService);
   } catch (error) {
     logger.error(
       {
         error: error instanceof Error ? error.message : String(error),
-        mode: RUN_ONCE ? "once" : "scheduled",
+        mode: "scheduled",
         cronSchedule: CRON_SCHEDULE,
         timezone: process.env.TZ,
       },
       "应用启动失败"
     );
-
-    // 定时任务启动失败时的降级处理
-    if (!RUN_ONCE) {
-      logger.info("定时任务启动失败，尝试执行一次后退出");
-      try {
-        await mainService.runOnce();
-        process.exit(0);
-      } catch (runError) {
-        logger.error(
-          { error: runError instanceof Error ? runError.message : String(runError) },
-          "降级单次执行也失败"
-        );
-      }
-    }
 
     process.exit(1);
   }

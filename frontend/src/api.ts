@@ -83,8 +83,9 @@ export const api = {
     return res.json();
   },
 
-  triggerTask: async (): Promise<TriggerResult> => {
-    const res = await fetch('/api/trigger', {
+  triggerTask: async (dryRun: boolean = false): Promise<TriggerResult> => {
+    const url = dryRun ? '/api/trigger?dryRun=true' : '/api/trigger';
+    const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' }
     });

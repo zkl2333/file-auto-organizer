@@ -1,9 +1,10 @@
 /**
- * Bun 测试全局设置文件
+ * Vitest 测试全局设置文件
  * 在所有测试运行前执行的配置
  */
 
-import { beforeAll, afterAll } from "bun:test";
+import { beforeAll, afterAll } from "vitest";
+import fs from "node:fs/promises";
 
 // 全局测试设置
 beforeAll(async () => {
@@ -12,7 +13,8 @@ beforeAll(async () => {
   process.env.LOG_LEVEL = "error"; // 减少测试时的日志输出
   
   // 确保测试目录存在
-  await Bun.write("tests/fixtures/.gitkeep", "");
+  await fs.mkdir("tests/fixtures", { recursive: true });
+  await fs.writeFile("tests/fixtures/.gitkeep", "");
 });
 
 // 全局清理
@@ -22,13 +24,14 @@ afterAll(async () => {
 });
 
 // 导出测试工具函数
-export function createTestFile(path: string, content: string): Promise<number> {
-  return Bun.write(path, content);
+export async function createTestFile(path: string, content: string): Promise<void> {
+  await fs.writeFile(path, content, "utf-8");
 }
 
-export function removeTestFile(path: string): Promise<void> {
-  return Bun.unlink(path).catch(() => {
+export async function removeTestFile(path: string): Promise<void> {
+  try {
+    await fs.unlink(path);
+  } catch {
     // 文件不存在时忽略错误
-  });
+  }
 }
-

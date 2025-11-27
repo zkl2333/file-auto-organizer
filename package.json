@@ -12,9 +12,7 @@
     "start": "cd backend && bun run start",
     "test": "cd backend && bun run test",
     "test:watch": "cd backend && bun run test:watch",
-    "test:coverage": "cd backend && bun run test --coverage",
-    "dry": "cd backend && bun run dist/index.js --dry-run --once",
-    "once": "cd backend && bun run dist/index.js --once"
+    "test:coverage": "cd backend && bun run test --coverage"
   },
   "repository": {
     "type": "git",

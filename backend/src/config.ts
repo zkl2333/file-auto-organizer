@@ -154,11 +154,6 @@ function mergeConfig(defaultConfig: ConfigFile, loadedConfig: Partial<ConfigFile
   return merged;
 }
 
-// 检查命令行参数
-function hasArg(flag: string): boolean {
-  return process.argv.includes(flag);
-}
-
 // 加载配置
 const loadedConfig = loadConfig();
 
@@ -181,8 +176,6 @@ export const config = {
   AI_BATCH_SIZE: loadedConfig.ai.batch_size,
   FILE_MAX_RETRIES: loadedConfig.file_operations.max_retries,
   FILE_RETRY_DELAY_BASE: loadedConfig.file_operations.retry_delay_base,
-  DRY_RUN: hasArg("--dry-run"),
-  RUN_ONCE: hasArg("--once"),
 } as const;
 
 export type AppConfig = typeof config;

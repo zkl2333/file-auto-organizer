@@ -125,44 +125,6 @@ docker compose restart
 docker compose pull && docker compose up -d
 ```
 
-### 方式二：单次手动运行
-
-适合偶尔整理文件或测试效果的场景。
-
-**使用专用配置文件（推荐）：**
-
-项目提供了 `docker-compose.once.yaml` 文件：
-
-```bash
-# 立即执行一次整理
-docker compose -f docker-compose.once.yaml up
-
-# 模拟运行（不移动文件，查看分类效果）
-docker compose -f docker-compose.once.yaml run --rm file-classifier-once \
-  bun run dist/index.js --dry-run --once
-```
-
-**使用 docker run 命令：**
-
-```bash
-# 单次运行
-docker run --rm \
-  -v ~/Downloads:/data:rw \
-  -v ./logs:/app/logs:rw \
-  -v ./config.yaml:/app/config.yaml:ro \
-  docker.io/zkl2333/file-auto-organizer:latest \
-  bun run dist/index.js --once
-
-# 模拟运行（推荐先用这个测试）
-docker run --rm \
-  -v ~/Downloads:/data:rw \
-  -v ./logs:/app/logs:rw \
-  -v ./config.yaml:/app/config.yaml:ro \
-  docker.io/zkl2333/file-auto-organizer:latest \
-  bun run dist/index.js --dry-run --once
-```
-
-
 **目录挂载示例：**
 
 ```bash
@@ -184,7 +146,7 @@ docker run --rm \
 
 ### 首次使用流程
 
-1. **先模拟运行**：使用 `--dry-run` 参数查看分类效果
+1. **模拟运行**：使用 HTTP API 的 `dryRun=true` 参数查看分类效果
 2. **检查日志**：确认分类逻辑符合预期  
 3. **小范围测试**：先在少量文件上测试
 4. **正式使用**：确认无误后进行正式整理
@@ -269,8 +231,6 @@ npm run start        # 启动后端定时服务
 npm run dev          # 同时启动前后端开发模式
 npm run dev:backend  # 仅启动后端开发
 npm run dev:frontend # 仅启动前端开发
-npm run once         # 单次运行
-npm run dry          # 模拟运行
 npm run test         # 运行测试
 ```
 
@@ -286,7 +246,7 @@ A: AI 会分析文件名、内容和元数据来做出分类决策。对于无�
 
 ### Q: 会移动重要文件吗？
 
-A: 程序只会移动指定 `incoming_dir` 目录中的文件，不会触碰其他位置的文件。建议先使用 `--dry-run` 模式测试。
+A: 程序只会移动指定 `incoming_dir` 目录中的文件，不会触碰其他位置的文件。建议先使用 HTTP API 的 `dryRun=true` 模式测试。
 
 ### Q: 如何自定义分类规则？
 

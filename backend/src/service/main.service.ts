@@ -12,7 +12,6 @@ const {
   INCOMING_DIR,
   SIMILARITY_THRESHOLD,
   AI_BATCH_SIZE,
-  DRY_RUN,
 } = config;
 
 export class MainService {
@@ -87,8 +86,8 @@ export class MainService {
   /**
    * 执行一次完整的分类任务
    */
-  async runOnce(): Promise<void> {
-    mainLogger.info(`开始分类任务...${DRY_RUN ? "(dry-run)" : ""}`);
+  async runOnce(dryRun: boolean = false): Promise<void> {
+    mainLogger.info(`开始分类任务...${dryRun ? "(dry-run)" : ""}`);
 
     // 初始化已知目录列表
     this.currentKnownDirs = this.fileScanService.scanDirs(ROOT_DIR);
@@ -169,7 +168,7 @@ export class MainService {
     for (const result of similarityResults) {
       try {
         const targetDir = path.join(ROOT_DIR, result.bestDir!);
-        await this.fileMoveService.moveFile(result.filePath, targetDir);
+        await this.fileMoveService.moveFile(result.filePath, targetDir, dryRun);
         
         // 更新已知目录列表
         this.updateKnownDirectories(targetDir);
@@ -237,7 +236,7 @@ export class MainService {
                 const normalizedRelTargetDir = givenBase === fileBase ? path.dirname(targetDir) : targetDir;
 
                 const fullTargetDir = path.join(ROOT_DIR, normalizedRelTargetDir);
-                await this.fileMoveService.moveFile(fileInfo.filePath, fullTargetDir);
+                await this.fileMoveService.moveFile(fileInfo.filePath, fullTargetDir, dryRun);
                 
                 // 更新已知目录列表
                 this.updateKnownDirectories(fullTargetDir);
