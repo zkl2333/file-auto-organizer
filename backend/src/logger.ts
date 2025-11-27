@@ -44,7 +44,7 @@ function createLogger(type: LoggerType): pino.Logger {
 
   // 创建文件日志目标
   const fileDestination = pino.destination({
-    minLength: 4096,
+    minLength: 512, // 减小缓冲区，更快写入文件
     sync: false,
     fd: fs.openSync(logPath, "a"),
   });
@@ -96,3 +96,21 @@ export function cleanupLogFiles() {
     destination.flushSync();
   });
 }
+
+// 导出手动刷新函数（用于确保关键时刻日志写入）
+export function flushLogs() {
+  fileDestinations.forEach((destination) => {
+    destination.flushSync();
+  });
+}
+
+// 每10秒自动刷新一次日志到文件（确保及时写入）
+setInterval(() => {
+  fileDestinations.forEach((destination) => {
+    try {
+      destination.flushSync();
+    } catch (err) {
+      // 忽略flush错误，避免影响主流程
+    }
+  });
+}, 10000);

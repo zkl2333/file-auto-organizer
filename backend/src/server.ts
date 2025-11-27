@@ -6,12 +6,14 @@ import cors from "@fastify/cors";
 import { config, CONFIG_BASE_DIR, findConfigFile } from "./config.js";
 import { MainService } from "./service/main.service.js";
 import { FileScanService } from "./service/file-scan.service.js";
+import { StatsService } from "./service/stats.service.js";
 import { LoggerType, LOG_PATHS } from "./logger.js";
 import { systemLogger as logger } from "./logger.js";
 
 const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3001;
 
 let mainServiceInstance: MainService | null = null;
+const statsService = new StatsService();
 let isRunning = false;
 let lastRunTime: Date | null = null;
 let lastRunStats: {
@@ -197,6 +199,18 @@ async function triggerTask(dryRun: boolean = false) {
         isRunning = false;
         lastRunTime = new Date();
         lastRunStats = stats;
+        
+        // 记录统计数据（仅在非 dry-run 模式下）
+        if (!dryRun) {
+          const aiCalls = stats.aiClassified > 0 ? 1 : 0; // 简化：一次任务算一次 AI 调用
+          statsService.recordTaskStats({
+            aiCalls,
+            tokensUsed: stats.tokensUsed,
+            filesProcessed: stats.totalProcessed,
+            fileTypes: stats.fileTypes,
+          });
+        }
+        
         logger.info({ stats }, `手动触发的任务执行完成${dryRun ? "(dry-run)" : ""}`);
       })
       .catch((error) => {
@@ -268,6 +282,26 @@ export async function startServer(mainService?: MainService) {
       });
     }
   });
+
+  // GET /api/usage-stats
+  server.get<{
+    Querystring: { range?: string };
+  }>(
+    "/api/usage-stats",
+    async (request: FastifyRequest<{ Querystring: { range?: string } }>, reply: FastifyReply) => {
+      try {
+        const range = (request.query.range || "all") as "today" | "week" | "month" | "all";
+        const stats = statsService.getStats(range);
+        reply.send(stats);
+      } catch (error) {
+        logger.error({ error }, "获取使用统计失败");
+        reply.status(500).send({
+          error: "Internal Server Error",
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+  );
 
   // GET /api/logs
   server.get<{

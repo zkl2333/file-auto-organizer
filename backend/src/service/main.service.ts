@@ -1,6 +1,6 @@
 import path from "node:path";
 import levenshtein from "fast-levenshtein";
-import { mainLogger } from "../logger.js";
+import { mainLogger, fileMoveLogger, flushLogs } from "../logger.js";
 import { config } from "../config.js";
 import { FileScanService } from "./file-scan.service.js";
 import { FileMoveService } from "./file-move.service.js";
@@ -91,9 +91,15 @@ export class MainService {
     aiClassified: number;
     totalProcessed: number;
     duration: number;
+    tokensUsed: number;
+    fileTypes: Record<string, number>;
   }> {
     const startTime = Date.now();
     mainLogger.info(`开始分类任务...${dryRun ? "(dry-run)" : ""}`);
+
+    // 统计变量
+    let totalTokensUsed = 0;
+    const fileTypes: Record<string, number> = {};
 
     // 初始化已知目录列表
     this.currentKnownDirs = this.fileScanService.scanDirs(ROOT_DIR);
@@ -109,6 +115,8 @@ export class MainService {
         aiClassified: 0,
         totalProcessed: 0,
         duration: Date.now() - startTime,
+        tokensUsed: 0,
+        fileTypes: {},
       };
     }
 
@@ -131,6 +139,11 @@ export class MainService {
 
     for (const f of filesToProcess) {
       const filePath = path.join(INCOMING_DIR, f);
+      
+      // 统计文件类型
+      const ext = path.extname(f).toLowerCase() || "无扩展名";
+      fileTypes[ext] = (fileTypes[ext] || 0) + 1;
+      
       const { bestDir, bestRelPath, bestScore } = this.findMostSimilarFile(f, knownFiles);
       
       if (bestDir && bestScore >= SIMILARITY_THRESHOLD) {
@@ -176,15 +189,17 @@ export class MainService {
     }
 
     // 第二步：处理相似度匹配的文件
+    let successfulMoves = 0;
     for (const result of similarityResults) {
       try {
         const targetDir = path.join(ROOT_DIR, result.bestDir!);
         await this.fileMoveService.moveFile(result.filePath, targetDir, dryRun);
-        
+        successfulMoves++;
+
         // 更新已知目录列表
         this.updateKnownDirectories(targetDir);
-        
-        mainLogger.info(
+
+        fileMoveLogger.info(
           {
             file: result.fileName,
             from: result.filePath,
@@ -201,26 +216,28 @@ export class MainService {
     }
 
     // 第三步：分批AI分类剩余文件
+    let aiSuccessfulMoves = 0;
     if (needAIClassification.length > 0) {
       try {
         mainLogger.info(`开始AI分批分类，总计 ${needAIClassification.length} 个文件，批次大小: ${AI_BATCH_SIZE}`);
-        
+
         // 分批处理
         const batches = this.chunkArray(needAIClassification, AI_BATCH_SIZE);
-        let totalProcessed = 0;
-        
+
         for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
           const batch = batches[batchIndex];
           mainLogger.info(`处理第 ${batchIndex + 1}/${batches.length} 批次，包含 ${batch.length} 个文件`);
           
           try {
             // 使用当前最新的已知目录列表进行AI分类
-            const classificationResults = await this.aiClassificationService.classifyBatch(
+            const { classifications: classificationResults, tokensUsed } = await this.aiClassificationService.classifyBatch(
               batch.map(f => ({ fileName: f.fileName, description: f.description })),
               this.currentKnownDirs
             );
 
-            mainLogger.info(`第 ${batchIndex + 1} 批次分类完成，处理了 ${classificationResults.length} 个文件`);
+            totalTokensUsed += tokensUsed;
+
+            mainLogger.info(`第 ${batchIndex + 1} 批次分类完成，处理了 ${classificationResults.length} 个文件，消耗 ${tokensUsed} tokens`);
 
             // 处理这个批次的分类结果
             for (let i = 0; i < classificationResults.length; i++) {
@@ -248,11 +265,12 @@ export class MainService {
 
                 const fullTargetDir = path.join(ROOT_DIR, normalizedRelTargetDir);
                 await this.fileMoveService.moveFile(fileInfo.filePath, fullTargetDir, dryRun);
-                
+                aiSuccessfulMoves++;
+
                 // 更新已知目录列表
                 this.updateKnownDirectories(fullTargetDir);
-                
-                mainLogger.info(
+
+                fileMoveLogger.info(
                   {
                     file: result.fileName,
                     from: fileInfo.filePath,
@@ -263,7 +281,6 @@ export class MainService {
                   },
                   "文件已移动"
                 );
-                totalProcessed++;
               } catch (err) {
                 mainLogger.error({ err, fileName: result.fileName }, `第 ${batchIndex + 1} 批次文件移动失败`);
               }
@@ -272,15 +289,15 @@ export class MainService {
             mainLogger.error({ err, batchIndex: batchIndex + 1, batchSize: batch.length }, `第 ${batchIndex + 1} 批次AI分类失败`);
             // 继续处理下一批次，不中断整个流程
           }
-          
+
           // 批次间稍作延迟，避免API请求过于频繁
           if (batchIndex < batches.length - 1) {
             mainLogger.info(`批次间等待 1 秒...`);
             await new Promise(resolve => setTimeout(resolve, 1000));
           }
         }
-        
-        mainLogger.info(`AI分批分类完成，总计处理 ${totalProcessed}/${needAIClassification.length} 个文件`);
+
+        mainLogger.info(`AI分批分类完成，总计处理 ${aiSuccessfulMoves}/${needAIClassification.length} 个文件`);
       } catch (err) {
         mainLogger.error({ err }, `AI分批分类过程失败`);
         throw err;
@@ -288,15 +305,20 @@ export class MainService {
     }
 
     const duration = Date.now() - startTime;
-    const totalProcessed = similarityResults.length + (needAIClassification.length > 0 ? needAIClassification.length : 0);
-    
-    mainLogger.info(`分类任务完成 - 相似度匹配: ${similarityResults.length} 个, AI分类: ${needAIClassification.length} 个`);
-    
+    const totalProcessed = successfulMoves + aiSuccessfulMoves;
+
+    mainLogger.info(`分类任务完成 - 相似度匹配: ${similarityResults.length} 个, AI分类: ${needAIClassification.length} 个, Token消耗: ${totalTokensUsed}`);
+
+    // 确保所有日志都写入文件
+    flushLogs();
+
     return {
       similarityMatched: similarityResults.length,
       aiClassified: needAIClassification.length,
       totalProcessed,
       duration,
+      tokensUsed: totalTokensUsed,
+      fileTypes,
     };
   }
 }

@@ -83,6 +83,19 @@ export interface ConfigJson {
   };
 }
 
+export interface UsageStats {
+  totalAiCalls: number;
+  totalTokensUsed: number;
+  totalFilesProcessed: number;
+  fileTypes: Record<string, number>;
+  dailyTrends: Array<{
+    date: string;
+    aiCalls: number;
+    tokensUsed: number;
+    filesProcessed: number;
+  }>;
+}
+
 export const api = {
   getStats: async (): Promise<Stats> => {
     const res = await fetch('/api/stats');
@@ -102,8 +115,7 @@ export const api = {
   triggerTask: async (dryRun: boolean = false): Promise<TriggerResult> => {
     const url = dryRun ? '/api/trigger?dryRun=true' : '/api/trigger';
     const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' }
+      method: 'POST'
     });
     return res.json();
   },
@@ -128,6 +140,11 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(config)
     });
+    return res.json();
+  },
+
+  getUsageStats: async (range: 'today' | 'week' | 'month' | 'all' = 'all'): Promise<UsageStats> => {
+    const res = await fetch(`/api/usage-stats?range=${range}`);
     return res.json();
   }
 };

@@ -2,16 +2,21 @@ import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { api } from '../api';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { RefreshCw, Download, Search, Copy, ChevronDown, ChevronRight } from 'lucide-react';
+import { toast } from 'sonner';
 
 // 日志级别映射
-const LOG_LEVELS: Record<number, { label: string; color: string }> = {
-  10: { label: 'TRACE', color: 'text-gray-500' },
-  20: { label: 'DEBUG', color: 'text-gray-400' },
-  30: { label: 'INFO', color: 'text-blue-500' },
-  40: { label: 'WARN', color: 'text-yellow-500' },
-  50: { label: 'ERROR', color: 'text-red-500' },
-  60: { label: 'FATAL', color: 'text-red-700' },
+const LOG_LEVELS: Record<number, { label: string; color: string; bgColor: string }> = {
+  10: { label: 'TRACE', color: 'text-gray-500', bgColor: 'bg-gray-100' },
+  20: { label: 'DEBUG', color: 'text-gray-600', bgColor: 'bg-gray-100' },
+  30: { label: 'INFO', color: 'text-blue-600', bgColor: 'bg-blue-50' },
+  40: { label: 'WARN', color: 'text-yellow-600', bgColor: 'bg-yellow-50' },
+  50: { label: 'ERROR', color: 'text-red-600', bgColor: 'bg-red-50' },
+  60: { label: 'FATAL', color: 'text-red-800', bgColor: 'bg-red-100' },
 };
 
 // 格式化时间
@@ -31,19 +36,33 @@ const formatTime = (isoTime: string): string => {
   }
 };
 
+// 日志类型配置
+const LOG_TYPES = [
+  { value: 'system', label: '系统日志', icon: '⚙️' },
+  { value: 'main', label: '主服务日志', icon: '📋' },
+  { value: 'ai', label: 'AI分类日志', icon: '🤖' },
+  { value: 'file-move', label: '文件移动日志', icon: '📁' },
+  { value: 'file-scan', label: '文件扫描日志', icon: '🔍' },
+  { value: 'file-info', label: '文件信息日志', icon: '📄' },
+];
+
 export const LogsView: React.FC = () => {
   const [logs, setLogs] = useState<string[]>([]);
-  const [type, setType] = useState('system');
+  const [filteredLogs, setFilteredLogs] = useState<string[]>([]);
+  const [type, setType] = useState('file-move');
   const [levelFilter, setLevelFilter] = useState<string>('all');
+  const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [autoRefresh, setAutoRefresh] = useState(true);
+  const [expandedLogs, setExpandedLogs] = useState<Set<number>>(new Set());
   const logsEndRef = useRef<HTMLDivElement>(null);
   const shouldAutoScroll = useRef(true);
 
   const loadLogs = useCallback(async () => {
     try {
       setLoading(true);
-      const data = await api.getLogs(type);
+      const data = await api.getLogs(type, 500);
       setLogs(data.logs);
       setError(null);
     } catch (err) {
@@ -55,66 +74,191 @@ export const LogsView: React.FC = () => {
 
   useEffect(() => {
     loadLogs();
-    const interval = setInterval(loadLogs, 5000);
-    return () => clearInterval(interval);
-  }, [loadLogs]);
+    if (autoRefresh) {
+      const interval = setInterval(loadLogs, 5000);
+      return () => clearInterval(interval);
+    }
+  }, [loadLogs, autoRefresh]);
+
+  // 过滤日志
+  useEffect(() => {
+    let filtered = logs;
+
+    // 级别过滤
+    if (levelFilter !== 'all') {
+      filtered = filtered.filter(log => {
+        try {
+          const logObj = JSON.parse(log);
+          return logObj.level === parseInt(levelFilter);
+        } catch {
+          return true;
+        }
+      });
+    }
+
+    // 搜索过滤
+    if (searchTerm) {
+      const lowerSearch = searchTerm.toLowerCase();
+      filtered = filtered.filter(log => log.toLowerCase().includes(lowerSearch));
+    }
+
+    setFilteredLogs(filtered);
+  }, [logs, levelFilter, searchTerm]);
 
   useEffect(() => {
     if (shouldAutoScroll.current && logsEndRef.current) {
       logsEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [logs]);
+  }, [filteredLogs]);
+
+  const toggleExpand = (index: number) => {
+    const newExpanded = new Set(expandedLogs);
+    if (newExpanded.has(index)) {
+      newExpanded.delete(index);
+    } else {
+      newExpanded.add(index);
+    }
+    setExpandedLogs(newExpanded);
+  };
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    toast.success('已复制到剪贴板');
+  };
+
+  const downloadLogs = () => {
+    const blob = new Blob([logs.join('\n')], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${type}-logs-${new Date().toISOString().slice(0, 10)}.log`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success('日志已下载');
+  };
 
   const renderLogLine = (log: string, index: number) => {
     try {
       const logObj = JSON.parse(log);
-      const { time, level, msg, module } = logObj;
-      
-      // 根据日志级别筛选
-      if (levelFilter !== 'all' && level !== parseInt(levelFilter)) {
-        return null;
-      }
-      
-      const levelInfo = LOG_LEVELS[level] || { label: `${level}`, color: 'text-gray-400' };
+      const { time, level, msg, module, ...rest } = logObj;
+
+      const levelInfo = LOG_LEVELS[level] || { label: `${level}`, color: 'text-gray-600', bgColor: 'bg-gray-50' };
       const formattedTime = time ? formatTime(time) : '';
-      
+      const isExpanded = expandedLogs.has(index);
+      const hasExtraData = Object.keys(rest).length > 0;
+
+      // 提取关键信息用于特殊显示
+      const { file, from, to, method, reasoning, similarity, score, similar, ...otherData } = rest;
+
       return (
-        <div key={index} className="text-sm mb-1 font-mono">
-          <span className="text-gray-500">[{formattedTime}]</span>
-          {' '}
-          <span className={`font-semibold ${levelInfo.color}`}>[{levelInfo.label}]</span>
-          {module && (
-            <>
-              {' '}
-              <span className="text-purple-400">[{module}]</span>
-            </>
-          )}
-          {' '}
-          <span className="text-gray-200">{msg}</span>
+        <div key={index} className={`mb-2 p-3 rounded-lg border ${levelInfo.bgColor} hover:shadow-md transition-shadow`}>
+          <div className="flex items-start gap-2">
+            {hasExtraData && (
+              <button
+                onClick={() => toggleExpand(index)}
+                className="mt-1 text-gray-400 hover:text-gray-600 flex-shrink-0"
+              >
+                {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+              </button>
+            )}
+            <div className="flex-1 min-w-0">
+              <div className="flex flex-wrap items-center gap-2 text-sm">
+                <span className="text-gray-500 font-mono text-xs">{formattedTime}</span>
+                <Badge variant="outline" className={levelInfo.color}>{levelInfo.label}</Badge>
+                {module && <Badge variant="secondary" className="text-xs">{module}</Badge>}
+                {method && <Badge variant="default" className="text-xs bg-purple-100 text-purple-700">{method}</Badge>}
+              </div>
+
+              <div className="mt-1 text-sm text-gray-800 font-medium">
+                {msg}
+              </div>
+
+              {/* 显示关键字段 */}
+              {(file || from || to || similarity !== undefined || score !== undefined || similar) && (
+                <div className="mt-2 space-y-1 text-xs">
+                  {file && (
+                    <div className="flex gap-2">
+                      <span className="text-gray-500 font-semibold">文件:</span>
+                      <span className="text-blue-600 font-mono">{file}</span>
+                    </div>
+                  )}
+                  {from && (
+                    <div className="flex gap-2">
+                      <span className="text-gray-500 font-semibold">源:</span>
+                      <span className="text-gray-700 font-mono truncate" title={from as string}>{from as string}</span>
+                    </div>
+                  )}
+                  {to && (
+                    <div className="flex gap-2">
+                      <span className="text-gray-500 font-semibold">目标:</span>
+                      <span className="text-green-600 font-mono truncate" title={to as string}>{to as string}</span>
+                    </div>
+                  )}
+                  {(similarity !== undefined || score !== undefined) && (
+                    <div className="flex gap-2">
+                      <span className="text-gray-500 font-semibold">相似度:</span>
+                      <span className="text-orange-600 font-semibold">
+                        {(similarity || score) ? Number(similarity || score).toFixed(4) : 'N/A'}
+                      </span>
+                      {similar && <span className="text-gray-500">← {similar as string}</span>}
+                    </div>
+                  )}
+                  {reasoning && (
+                    <div className="flex gap-2">
+                      <span className="text-gray-500 font-semibold">理由:</span>
+                      <span className="text-gray-700 italic">{reasoning as string}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* 展开显示完整数据 */}
+              {isExpanded && Object.keys(otherData).length > 0 && (
+                <div className="mt-2 p-2 bg-gray-800 text-gray-100 rounded text-xs font-mono overflow-x-auto">
+                  <pre>{JSON.stringify(otherData, null, 2)}</pre>
+                </div>
+              )}
+            </div>
+
+            <button
+              onClick={() => copyToClipboard(log)}
+              className="flex-shrink-0 text-gray-400 hover:text-gray-600 p-1"
+              title="复制日志"
+            >
+              <Copy size={14} />
+            </button>
+          </div>
         </div>
       );
     } catch {
-      return <div key={index} className="text-sm mb-1 text-gray-300 font-mono">{log}</div>;
+      // 无法解析的日志，使用原始显示
+      return (
+        <div key={index} className="mb-2 p-2 bg-gray-50 rounded border text-sm text-gray-700 font-mono">
+          {log}
+        </div>
+      );
     }
   };
 
+  const currentLogType = LOG_TYPES.find(t => t.value === type);
+
   return (
     <div className="space-y-4">
-      <div className="mb-4 flex gap-4">
+      {/* 控制栏 */}
+      <div className="flex flex-wrap gap-3 items-center">
         <Select value={type} onValueChange={setType}>
           <SelectTrigger className="w-[200px]">
             <SelectValue placeholder="选择日志类型" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="system">系统日志</SelectItem>
-            <SelectItem value="main">主服务日志</SelectItem>
-            <SelectItem value="ai">AI分类日志</SelectItem>
-            <SelectItem value="file-move">文件移动日志</SelectItem>
-            <SelectItem value="file-scan">文件扫描日志</SelectItem>
-            <SelectItem value="file-info">文件信息日志</SelectItem>
+            {LOG_TYPES.map(logType => (
+              <SelectItem key={logType.value} value={logType.value}>
+                {logType.icon} {logType.label}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
-        
+
         <Select value={levelFilter} onValueChange={setLevelFilter}>
           <SelectTrigger className="w-[150px]">
             <SelectValue placeholder="日志级别" />
@@ -126,30 +270,81 @@ export const LogsView: React.FC = () => {
             <SelectItem value="50">ERROR</SelectItem>
           </SelectContent>
         </Select>
+
+        <div className="relative flex-1 min-w-[200px]">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
+          <Input
+            placeholder="搜索日志内容..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-10"
+          />
+        </div>
+
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={loadLogs}
+          disabled={loading}
+        >
+          <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+          刷新
+        </Button>
+
+        <Button
+          variant={autoRefresh ? "default" : "outline"}
+          size="sm"
+          onClick={() => setAutoRefresh(!autoRefresh)}
+        >
+          {autoRefresh ? '✓ 自动刷新' : '自动刷新'}
+        </Button>
+
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={downloadLogs}
+          disabled={logs.length === 0}
+        >
+          <Download className="mr-2 h-4 w-4" />
+          下载
+        </Button>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>{type} 日志</CardTitle>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                {currentLogType?.icon} {currentLogType?.label}
+              </CardTitle>
+              <CardDescription className="mt-1">
+                共 {logs.length} 条日志
+                {filteredLogs.length !== logs.length && ` · 筛选后 ${filteredLogs.length} 条`}
+              </CardDescription>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
-          <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-xs max-h-[600px] overflow-y-auto">
+          <div className="bg-white border rounded-lg p-4 max-h-[700px] overflow-y-auto">
             {loading && logs.length === 0 ? (
-              <div className="text-gray-400">加载中...</div>
+              <div className="text-center text-gray-400 py-8">加载中...</div>
             ) : error ? (
               <Alert variant="destructive">
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
-            ) : logs.length === 0 ? (
-              <div className="text-gray-400">暂无日志</div>
+            ) : filteredLogs.length === 0 ? (
+              <div className="text-center text-gray-400 py-8">
+                {logs.length === 0 ? '暂无日志' : '未找到匹配的日志'}
+              </div>
             ) : (
-              logs.map(renderLogLine)
+              <>
+                {filteredLogs.map(renderLogLine)}
+                <div ref={logsEndRef} />
+              </>
             )}
-            <div ref={logsEndRef} />
           </div>
         </CardContent>
       </Card>
     </div>
   );
 };
-
