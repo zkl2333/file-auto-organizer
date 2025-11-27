@@ -7,6 +7,7 @@ import { StatsView } from './components/StatsView';
 import { LogsView } from './components/LogsView';
 import { TriggerView } from './components/TriggerView';
 import { ConfigView } from './components/ConfigView';
+import { FilesView } from './components/FilesView';
 
 function App() {
   return (
@@ -30,6 +31,7 @@ function App() {
                 <Route path="/logs" element={<LogsView />} />
                 <Route path="/trigger" element={<TriggerView />} />
                 <Route path="/config" element={<ConfigView />} />
+                <Route path="/files" element={<FilesView />} />
               </Routes>
             </div>
           </div>

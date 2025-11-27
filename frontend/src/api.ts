@@ -146,6 +146,34 @@ export const api = {
   getUsageStats: async (range: 'today' | 'week' | 'month' | 'all' = 'all'): Promise<UsageStats> => {
     const res = await fetch(`/api/usage-stats?range=${range}`);
     return res.json();
+  },
+
+  getFiles: async (path?: string, base: 'root' | 'incoming' = 'root'): Promise<FileListResponse> => {
+    const params = new URLSearchParams();
+    if (path) params.set('path', path);
+    if (base === 'incoming') params.set('base', 'incoming');
+    const res = await fetch(`/api/files?${params.toString()}`);
+    if (!res.ok) {
+      throw new Error(`获取文件列表失败: ${res.statusText}`);
+    }
+    return res.json();
   }
 };
+
+export interface FileItem {
+  name: string;
+  path: string;
+  type: 'file' | 'directory';
+  size: number | null;
+  modified: string;
+}
+
+export interface FileListResponse {
+  type: 'directory' | 'file';
+  path: string;
+  items?: FileItem[];
+  name?: string;
+  size?: number;
+  modified?: string;
+}
 
