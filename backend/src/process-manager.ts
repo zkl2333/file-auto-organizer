@@ -1,4 +1,4 @@
-import { systemLogger } from "./logger.js";
+import { flushLogs, systemLogger } from "./logger.js";
 
 type CleanupFunction = () => void | Promise<void>;
 
@@ -55,6 +55,7 @@ class ProcessManager {
   private async gracefulShutdown(signal: string) {
     systemLogger.info(`收到 ${signal} 信号，开始优雅关闭...`);
     await this.executeCleanup(signal);
+    flushLogs();
     process.exit(0);
   }
 
