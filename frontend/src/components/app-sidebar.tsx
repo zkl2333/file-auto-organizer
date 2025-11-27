@@ -6,7 +6,6 @@ import {
   IconFolder,
   IconPlayerPlay,
   IconSettings,
-  IconFiles,
 } from "@tabler/icons-react"
 
 import { NavMain } from "@/components/nav-main"
@@ -19,7 +18,7 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
 
-export type ViewType = 'stats' | 'logs' | 'trigger' | 'config' | 'files'
+export type ViewType = 'stats' | 'logs' | 'trigger' | 'config'
 
 interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {}
 
@@ -34,11 +33,6 @@ export function AppSidebar({ ...props }: AppSidebarProps) {
       id: 'logs' as ViewType,
       title: "日志查看",
       icon: IconFileText,
-    },
-    {
-      id: 'files' as ViewType,
-      title: "文件导航",
-      icon: IconFiles,
     },
     {
       id: 'trigger' as ViewType,
