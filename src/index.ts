@@ -46,33 +46,106 @@ function validateCronSchedule(schedule: string): void {
 }
 
 /**
+ * 执行定时任务（带锁和超时保护）
+ */
+async function executeScheduledTask(
+  mainService: MainService,
+  isRunning: { value: boolean }
+): Promise<void> {
+  // 检查是否已有任务在执行
+  if (isRunning.value) {
+    logger.warn("定时任务已在执行中，跳过本次执行");
+    return;
+  }
+
+  isRunning.value = true;
+  const startTime = Date.now();
+  const TASK_TIMEOUT = 2 * 60 * 60 * 1000; // 2小时超时
+
+  try {
+    logger.info("定时任务开始执行");
+    
+    // 使用 Promise.race 实现超时保护
+    const taskPromise = mainService.runOnce();
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => {
+        reject(new Error(`定时任务执行超时（超过 ${TASK_TIMEOUT / 1000 / 60} 分钟）`));
+      }, TASK_TIMEOUT);
+    });
+
+    await Promise.race([taskPromise, timeoutPromise]);
+    
+    const duration = Date.now() - startTime;
+    logger.info({ duration: `${(duration / 1000).toFixed(2)}s` }, "定时任务执行完成");
+  } catch (error) {
+    const duration = Date.now() - startTime;
+    logger.error(
+      {
+        error: error instanceof Error ? error.message : String(error),
+        duration: `${(duration / 1000).toFixed(2)}s`,
+      },
+      "定时任务执行失败"
+    );
+  } finally {
+    isRunning.value = false;
+  }
+}
+
+/**
  * 启动定时任务模式
  */
 async function startScheduledMode(mainService: MainService): Promise<void> {
-  logger.info(`正在启动定时任务，计划表达式: ${CRON_SCHEDULE}, 时区: ${process.env.TZ}`);
+  logger.info(`正在启动定时任务，计划表达式: ${CRON_SCHEDULE}, 时区: ${process.env.TZ || "Asia/Shanghai"}`);
 
   // 验证 cron 表达式
   validateCronSchedule(CRON_SCHEDULE);
 
+  // 执行锁，防止重复执行
+  const isRunning = { value: false };
+
   // 创建定时任务
   const task = cron.schedule(
     CRON_SCHEDULE,
-    async () => {
-      try {
-        logger.info("定时任务开始执行");
-        await mainService.runOnce();
-        logger.info("定时任务执行完成");
-      } catch (error) {
-        logger.error(
-          { error: error instanceof Error ? error.message : String(error) },
-          "定时任务执行失败"
-        );
-      }
+    () => {
+      // 使用 setImmediate 确保异步执行，避免阻塞事件循环
+      setImmediate(() => {
+        executeScheduledTask(mainService, isRunning).catch((error) => {
+          logger.error(
+            { error: error instanceof Error ? error.message : String(error) },
+            "定时任务执行出现未捕获错误"
+          );
+        });
+      });
     },
-    { timezone: process.env.TZ }
+    {
+      timezone: process.env.TZ || "Asia/Shanghai",
+      scheduled: true,
+    }
   );
 
+  // 启动任务
+  task.start();
+
   logger.info("定时任务已启动，等待执行...");
+
+  // 添加心跳检查，每30分钟记录一次状态（避免日志过多）
+  const heartbeatInterval = setInterval(() => {
+    const now = new Date();
+    logger.info(
+      {
+        time: now.toISOString(),
+        timezone: process.env.TZ || "Asia/Shanghai",
+        isRunning: isRunning.value,
+        cronSchedule: CRON_SCHEDULE,
+      },
+      "定时任务运行中"
+    );
+  }, 30 * 60 * 1000); // 每30分钟
+
+  // 注册心跳清理
+  processManager.registerCleanup(() => {
+    clearInterval(heartbeatInterval);
+  }, "清理心跳定时器");
 
   // 设置清理逻辑
   setupProcessCleanup(task);

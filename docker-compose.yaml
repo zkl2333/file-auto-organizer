@@ -3,6 +3,11 @@ services:
     image: docker.io/zkl2333/file-auto-organizer:latest
     container_name: file-classifier
     restart: unless-stopped
+    environment:
+      # 设置时区
+      - TZ=Asia/Shanghai
+      # 确保 Node.js 事件循环不被阻塞
+      - NODE_ENV=production
     volumes:
       # 宿主机下载目录挂载到容器内 /data
       - ~/Downloads:/data:rw
@@ -11,3 +16,19 @@ services:
       # 配置文件挂载
       - ./config.yaml:/app/config.yaml:ro
     working_dir: /app
+    # 健康检查，确保容器正常运行
+    healthcheck:
+      test: ["CMD-SHELL", "ps aux | grep -v grep | grep -q 'bun.*dist/index.js' || exit 1"]
+      interval: 5m
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    # 确保容器有足够的资源，避免被暂停
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.1'
+          memory: 128M
