@@ -239,24 +239,39 @@ cron:
 如果需要本地开发或调试：
 
 ```bash
-# 安装 Bun
+# 安装 Bun（后端需要）
 curl -fsSL https://bun.sh/install | bash
+
+# 安装 Node.js（前端需要，建议 v18+）
+# macOS/Linux: 使用 nvm 或从官网下载
+# Windows: 从官网下载或使用 nvm-windows
 
 # 克隆项目
 git clone https://github.com/zkl2333/file-auto-organizer.git
 cd file-auto-organizer
 
-# 安装依赖
-bun install
+# 安装依赖（前后端独立安装）
+# 后端使用 Bun
+cd backend && bun install && cd ..
+# 前端使用 Node.js/npm
+cd frontend && npm install && cd ..
+
+# 安装根目录开发依赖（用于同时运行前后端）
+npm install
 
 # 配置文件
 cp config.yaml.example config.yaml
 # 编辑 config.yaml 设置你的 API Key
 
-# 运行
-bun run once    # 单次运行
-bun run dry     # 模拟运行
-bun start       # 后台定时运行
+# 运行（在根目录）
+npm run build        # 构建前后端
+npm run start        # 启动后端定时服务
+npm run dev          # 同时启动前后端开发模式
+npm run dev:backend  # 仅启动后端开发
+npm run dev:frontend # 仅启动前端开发
+npm run once         # 单次运行
+npm run dry          # 模拟运行
+npm run test         # 运行测试
 ```
 
 ## 常见问题

@@ -9,13 +9,15 @@ RUN apk add --no-cache tzdata perl
 
 WORKDIR /app
 
-# 复制包管理文件并安装依赖
-COPY package.json bun.lockb* ./
-RUN bun install --frozen-lockfile --production
+# 复制 backend 包管理文件并安装依赖（包括 devDependencies，构建需要）
+COPY backend/package.json ./backend/
+WORKDIR /app/backend
+RUN bun install
 
-# 复制 TypeScript 配置与源码
-COPY tsconfig.json ./
-COPY ./src ./src
+# 复制 TypeScript 配置、Bun 配置与源码
+COPY backend/tsconfig.json ./
+COPY backend/bunfig.toml ./
+COPY backend/src ./src
 
 # 构建项目
 RUN bun run build

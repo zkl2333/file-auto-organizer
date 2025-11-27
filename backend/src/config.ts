@@ -64,19 +64,58 @@ const defaultConfig: ConfigFile = {
   },
 };
 
+/**
+ * 查找配置文件
+ * 优先级：环境变量 > cwd/config.yaml (Docker) > cwd/../config.yaml (本地开发)
+ */
+export function findConfigFile(): string | null {
+  // 1. 环境变量指定
+  if (process.env.CONFIG_PATH) {
+    const envPath = path.resolve(process.env.CONFIG_PATH);
+    if (fs.existsSync(envPath)) return envPath;
+  }
+  
+  // 2. 当前工作目录 (Docker: /app/config.yaml)
+  const cwdPath = path.resolve(process.cwd(), "config.yaml");
+  if (fs.existsSync(cwdPath)) return cwdPath;
+  
+  // 3. 父目录 (本地开发: backend/../config.yaml)
+  const parentPath = path.resolve(process.cwd(), "..", "config.yaml");
+  if (fs.existsSync(parentPath)) return parentPath;
+  
+  return null;
+}
+
+// 配置文件路径（用于解析相对路径）
+let configFilePath: string | null = null;
+
+/**
+ * 获取基准目录（配置文件所在目录）
+ */
+function getBaseDir(): string {
+  return configFilePath ? path.dirname(configFilePath) : process.cwd();
+}
+
+/**
+ * 解析路径（相对路径基于配置文件目录，绝对路径保持不变）
+ */
+function resolvePath(p: string): string {
+  return path.isAbsolute(p) ? p : path.resolve(getBaseDir(), p);
+}
+
 // 加载配置文件
 function loadConfig(): ConfigFile {
-  const configPath = path.resolve(process.cwd(), "config.yaml");
+  configFilePath = findConfigFile();
 
   try {
-    if (fs.existsSync(configPath)) {
-      const fileContent = fs.readFileSync(configPath, "utf8");
+    if (configFilePath) {
+      const fileContent = fs.readFileSync(configFilePath, "utf8");
       const loadedConfig = yaml.load(fileContent) as ConfigFile;
 
       // 合并默认配置和加载的配置
       return mergeConfig(defaultConfig, loadedConfig);
     } else {
-      console.warn(`配置文件 ${configPath} 不存在，使用默认配置`);
+      console.warn(`配置文件 config.yaml 不存在，使用默认配置`);
       return defaultConfig;
     }
   } catch (error) {
@@ -123,16 +162,20 @@ function hasArg(flag: string): boolean {
 // 加载配置
 const loadedConfig = loadConfig();
 
+// 导出配置文件基准目录
+export const CONFIG_BASE_DIR = getBaseDir();
+
 // 导出配置对象（保持原有接口兼容性）
+// 相对路径解析为绝对路径（相对于配置文件所在目录），绝对路径保持不变
 export const config = {
   OPENAI_API_KEY: loadedConfig.openai.api_key,
   OPENAI_MODEL: loadedConfig.openai.model,
   OPENAI_BASE_URL: loadedConfig.openai.base_url,
-  ROOT_DIR: loadedConfig.directories.root_dir,
-  INCOMING_DIR: loadedConfig.directories.incoming_dir,
+  ROOT_DIR: resolvePath(loadedConfig.directories.root_dir),
+  INCOMING_DIR: resolvePath(loadedConfig.directories.incoming_dir),
   CRON_SCHEDULE: loadedConfig.cron.schedule,
   LOG_LEVEL: loadedConfig.logging.level,
-  LOG_DIR: loadedConfig.logging.dir,
+  LOG_DIR: resolvePath(loadedConfig.logging.dir),
   MAX_SCAN_DEPTH: loadedConfig.scan.max_depth,
   SIMILARITY_THRESHOLD: loadedConfig.scan.similarity_threshold,
   AI_BATCH_SIZE: loadedConfig.ai.batch_size,

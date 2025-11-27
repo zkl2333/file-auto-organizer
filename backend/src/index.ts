@@ -4,6 +4,7 @@ import { config } from "./config.js";
 import { MainService } from "./service/main.service.js";
 import { cleanupFileInfo, cleanupFileInfoSync } from "./service/file-info.service.js";
 import { processManager } from "./process-manager.js";
+import { startServer } from "./server.js";
 
 const { OPENAI_API_KEY, CRON_SCHEDULE, RUN_ONCE } = config;
 
@@ -74,8 +75,17 @@ async function startScheduledMode(mainService: MainService): Promise<void> {
 
   logger.info("定时任务已启动，等待执行...");
 
+  // 启动HTTP服务器，传入mainService实例
+  const server = startServer(mainService);
+
   // 设置清理逻辑
   setupProcessCleanup(task);
+  
+  // 注册服务器关闭清理
+  processManager.registerCleanup(() => {
+    logger.info("正在关闭HTTP服务器...");
+    server.stop();
+  }, "关闭HTTP服务器");
 }
 
 /**

@@ -14,7 +14,7 @@ export enum LoggerType {
 }
 
 // 日志文件路径配置 - 固定文件名
-const LOG_PATHS = {
+export const LOG_PATHS = {
   [LoggerType.SYSTEM]: path.join(config.LOG_DIR, "system.log"),
   [LoggerType.MAIN]: path.join(config.LOG_DIR, "main.log"),
   [LoggerType.AI]: path.join(config.LOG_DIR, "ai.log"),
