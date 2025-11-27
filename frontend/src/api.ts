@@ -18,6 +18,17 @@ export interface Stats {
   };
 }
 
+export interface TaskStatus {
+  isRunning: boolean;
+  lastRunTime: string | null;
+  lastRunStats: {
+    similarityMatched: number;
+    aiClassified: number;
+    totalProcessed: number;
+    duration: number;
+  } | null;
+}
+
 export interface LogEntry {
   time?: string;
   level?: number;
@@ -75,6 +86,11 @@ export interface ConfigJson {
 export const api = {
   getStats: async (): Promise<Stats> => {
     const res = await fetch('/api/stats');
+    return res.json();
+  },
+
+  getStatus: async (): Promise<TaskStatus> => {
+    const res = await fetch('/api/status');
     return res.json();
   },
 

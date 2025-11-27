@@ -13,6 +13,13 @@ const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3001;
 
 let mainServiceInstance: MainService | null = null;
 let isRunning = false;
+let lastRunTime: Date | null = null;
+let lastRunStats: {
+  similarityMatched: number;
+  aiClassified: number;
+  totalProcessed: number;
+  duration: number;
+} | null = null;
 
 /**
  * 获取统计信息
@@ -186,9 +193,11 @@ async function triggerTask(dryRun: boolean = false) {
 
     // 在后台执行任务，不阻塞响应
     service.runOnce(dryRun)
-      .then(() => {
+      .then((stats) => {
         isRunning = false;
-        logger.info(`手动触发的任务执行完成${dryRun ? "(dry-run)" : ""}`);
+        lastRunTime = new Date();
+        lastRunStats = stats;
+        logger.info({ stats }, `手动触发的任务执行完成${dryRun ? "(dry-run)" : ""}`);
       })
       .catch((error) => {
         isRunning = false;
@@ -236,6 +245,23 @@ export async function startServer(mainService?: MainService) {
       reply.send(stats);
     } catch (error) {
       logger.error({ error }, "获取统计信息失败");
+      reply.status(500).send({
+        error: "Internal Server Error",
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  });
+
+  // GET /api/status
+  server.get("/api/status", async (request: FastifyRequest, reply: FastifyReply) => {
+    try {
+      reply.send({
+        isRunning,
+        lastRunTime: lastRunTime ? lastRunTime.toISOString() : null,
+        lastRunStats,
+      });
+    } catch (error) {
+      logger.error({ error }, "获取任务状态失败");
       reply.status(500).send({
         error: "Internal Server Error",
         message: error instanceof Error ? error.message : String(error),

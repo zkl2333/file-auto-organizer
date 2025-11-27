@@ -86,7 +86,13 @@ export class MainService {
   /**
    * 执行一次完整的分类任务
    */
-  async runOnce(dryRun: boolean = false): Promise<void> {
+  async runOnce(dryRun: boolean = false): Promise<{
+    similarityMatched: number;
+    aiClassified: number;
+    totalProcessed: number;
+    duration: number;
+  }> {
+    const startTime = Date.now();
     mainLogger.info(`开始分类任务...${dryRun ? "(dry-run)" : ""}`);
 
     // 初始化已知目录列表
@@ -98,7 +104,12 @@ export class MainService {
 
     if (filesToProcess.length === 0) {
       mainLogger.info("没有需要分类的文件");
-      return;
+      return {
+        similarityMatched: 0,
+        aiClassified: 0,
+        totalProcessed: 0,
+        duration: Date.now() - startTime,
+      };
     }
 
     // 第一步：相似度匹配
@@ -276,6 +287,16 @@ export class MainService {
       }
     }
 
+    const duration = Date.now() - startTime;
+    const totalProcessed = similarityResults.length + (needAIClassification.length > 0 ? needAIClassification.length : 0);
+    
     mainLogger.info(`分类任务完成 - 相似度匹配: ${similarityResults.length} 个, AI分类: ${needAIClassification.length} 个`);
+    
+    return {
+      similarityMatched: similarityResults.length,
+      aiClassified: needAIClassification.length,
+      totalProcessed,
+      duration,
+    };
   }
 }
