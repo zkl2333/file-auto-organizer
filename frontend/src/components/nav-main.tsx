@@ -1,4 +1,5 @@
 import { type Icon } from "@tabler/icons-react"
+import { Link, useLocation } from "react-router-dom"
 
 import {
   SidebarGroup,
@@ -11,17 +12,15 @@ import type { ViewType } from "./app-sidebar"
 
 export function NavMain({
   items,
-  activeView,
-  onViewChange,
 }: {
   items: {
     id: ViewType
     title: string
     icon?: Icon
   }[]
-  activeView: ViewType
-  onViewChange: (view: ViewType) => void
 }) {
+  const location = useLocation()
+  
   return (
     <SidebarGroup>
       <SidebarGroupContent className="flex flex-col gap-2">
@@ -30,11 +29,13 @@ export function NavMain({
             <SidebarMenuItem key={item.id}>
               <SidebarMenuButton
                 tooltip={item.title}
-                isActive={activeView === item.id}
-                onClick={() => onViewChange(item.id)}
+                isActive={location.pathname === `/${item.id}`}
+                asChild
               >
-                {item.icon && <item.icon />}
-                <span>{item.title}</span>
+                <Link to={`/${item.id}`}>
+                  {item.icon && <item.icon />}
+                  <span>{item.title}</span>
+                </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>
           ))}
