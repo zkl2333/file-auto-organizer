@@ -4,6 +4,7 @@ import { config } from "./config.js";
 import { MainService } from "./service/main.service.js";
 import { cleanupFileInfo, cleanupFileInfoSync } from "./service/file-info.service.js";
 import { processManager } from "./process-manager.js";
+import { WebServer } from "./web-server.js";
 
 const { OPENAI_API_KEY, CRON_SCHEDULE, RUN_ONCE } = config;
 
@@ -53,6 +54,10 @@ async function startScheduledMode(mainService: MainService): Promise<void> {
 
   // 验证 cron 表达式
   validateCronSchedule(CRON_SCHEDULE);
+
+  // 启动Web服务器
+  const webServer = new WebServer({ port: 3000 });
+  webServer.start();
 
   // 创建定时任务
   const task = cron.schedule(
