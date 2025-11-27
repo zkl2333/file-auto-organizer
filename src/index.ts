@@ -54,19 +54,55 @@ async function startScheduledMode(mainService: MainService): Promise<void> {
   // 验证 cron 表达式
   validateCronSchedule(CRON_SCHEDULE);
 
+  // 任务运行状态标志
+  let isRunning = false;
+  let lastStartTime: Date | null = null;
+  let lastDuration: number | null = null;
+
   // 创建定时任务
   const task = cron.schedule(
     CRON_SCHEDULE,
     async () => {
+      // 检查上次任务是否还在运行
+      if (isRunning) {
+        logger.warn(
+          {
+            lastStartTime: lastStartTime?.toISOString(),
+            runningFor: lastStartTime ? Date.now() - lastStartTime.getTime() : 0,
+          },
+          "上次任务还在运行中，跳过本次执行"
+        );
+        return;
+      }
+
+      isRunning = true;
+      lastStartTime = new Date();
+      const startTime = Date.now();
+
       try {
         logger.info("定时任务开始执行");
         await mainService.runOnce();
-        logger.info("定时任务执行完成");
+        
+        lastDuration = Date.now() - startTime;
+        logger.info(
+          {
+            duration: lastDuration,
+            durationReadable: `${(lastDuration / 1000).toFixed(2)}s`,
+          },
+          "定时任务执行完成"
+        );
       } catch (error) {
+        lastDuration = Date.now() - startTime;
         logger.error(
-          { error: error instanceof Error ? error.message : String(error) },
+          {
+            error: error instanceof Error ? error.message : String(error),
+            duration: lastDuration,
+            durationReadable: `${(lastDuration / 1000).toFixed(2)}s`,
+          },
           "定时任务执行失败"
         );
+      } finally {
+        isRunning = false;
       }
     },
     { timezone: process.env.TZ }

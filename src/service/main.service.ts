@@ -88,17 +88,34 @@ export class MainService {
    * 执行一次完整的分类任务
    */
   async runOnce(): Promise<void> {
+    const taskStartTime = Date.now();
     mainLogger.info(`开始分类任务...${DRY_RUN ? "(dry-run)" : ""}`);
 
     // 初始化已知目录列表
+    const scanDirsStart = Date.now();
     this.currentKnownDirs = this.fileScanService.scanDirs(ROOT_DIR);
-    mainLogger.info({ initialDirCount: this.currentKnownDirs.length }, "初始化已知目录列表");
+    mainLogger.info(
+      {
+        initialDirCount: this.currentKnownDirs.length,
+        duration: Date.now() - scanDirsStart,
+      },
+      "初始化已知目录列表"
+    );
 
+    const scanFilesStart = Date.now();
     const knownFiles = this.fileScanService.scanFiles(ROOT_DIR);
+    mainLogger.info(
+      {
+        fileCount: knownFiles.length,
+        duration: Date.now() - scanFilesStart,
+      },
+      "扫描已知文件完成"
+    );
+
     const filesToProcess = this.fileScanService.getIncomingFiles(INCOMING_DIR);
 
     if (filesToProcess.length === 0) {
-      mainLogger.info("没有需要分类的文件");
+      mainLogger.info({ totalDuration: Date.now() - taskStartTime }, "没有需要分类的文件");
       return;
     }
 
@@ -117,6 +134,7 @@ export class MainService {
       description: string;
     }> = [];
 
+    const similarityStart = Date.now();
     mainLogger.info(`开始相似度匹配，处理 ${filesToProcess.length} 个文件`);
 
     for (const f of filesToProcess) {
@@ -165,7 +183,19 @@ export class MainService {
       }
     }
 
+    const similarityDuration = Date.now() - similarityStart;
+    mainLogger.info(
+      {
+        similarityCount: similarityResults.length,
+        aiNeededCount: needAIClassification.length,
+        duration: similarityDuration,
+        durationReadable: `${(similarityDuration / 1000).toFixed(2)}s`,
+      },
+      "相似度匹配完成"
+    );
+
     // 第二步：处理相似度匹配的文件
+    const moveStart = Date.now();
     for (const result of similarityResults) {
       try {
         const targetDir = path.join(ROOT_DIR, result.bestDir!);
@@ -190,8 +220,21 @@ export class MainService {
       }
     }
 
+    if (similarityResults.length > 0) {
+      const moveDuration = Date.now() - moveStart;
+      mainLogger.info(
+        {
+          count: similarityResults.length,
+          duration: moveDuration,
+          durationReadable: `${(moveDuration / 1000).toFixed(2)}s`,
+        },
+        "相似度匹配文件移动完成"
+      );
+    }
+
     // 第三步：分批AI分类剩余文件
     if (needAIClassification.length > 0) {
+      const aiStart = Date.now();
       try {
         mainLogger.info(`开始AI分批分类，总计 ${needAIClassification.length} 个文件，批次大小: ${AI_BATCH_SIZE}`);
         
@@ -270,13 +313,31 @@ export class MainService {
           }
         }
         
-        mainLogger.info(`AI分批分类完成，总计处理 ${totalProcessed}/${needAIClassification.length} 个文件`);
+        const aiDuration = Date.now() - aiStart;
+        mainLogger.info(
+          {
+            totalProcessed,
+            total: needAIClassification.length,
+            duration: aiDuration,
+            durationReadable: `${(aiDuration / 1000).toFixed(2)}s`,
+          },
+          "AI分批分类完成"
+        );
       } catch (err) {
         mainLogger.error({ err }, `AI分批分类过程失败`);
         throw err;
       }
     }
 
-    mainLogger.info(`分类任务完成 - 相似度匹配: ${similarityResults.length} 个, AI分类: ${needAIClassification.length} 个`);
+    const totalDuration = Date.now() - taskStartTime;
+    mainLogger.info(
+      {
+        similarityCount: similarityResults.length,
+        aiCount: needAIClassification.length,
+        totalDuration,
+        durationReadable: `${(totalDuration / 1000).toFixed(2)}s`,
+      },
+      "分类任务完成"
+    );
   }
 }
