@@ -20,6 +20,7 @@ export interface Stats {
 
 export interface TaskStatus {
   isRunning: boolean;
+  currentTaskId: string | null;
   lastRunTime: string | null;
   lastRunStats: {
     similarityMatched: number;
@@ -28,6 +29,7 @@ export interface TaskStatus {
     duration: number;
   } | null;
   cronEnabled: boolean | null;
+  lastTask: TaskRecord | null;
 }
 
 export interface LogEntry {
@@ -110,7 +112,7 @@ export interface TaskRecord {
   similarityMatched: number;
   aiClassified: number;
   fileTypes: Record<string, number>;
-  status: 'success' | 'partial' | 'failed';
+  status: 'success' | 'partial' | 'failed' | 'running';
   errorMessage?: string;
   dryRun: boolean;
 }

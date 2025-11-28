@@ -78,12 +78,10 @@ export class FileInfoService {
    * 检测文件是否为文本文件（纯流式读取）
    */
   private isTextFile(filePath: string): boolean {
-    const fileName = path.basename(filePath);
     const ext = path.extname(filePath).toLowerCase();
 
     // 首先检查扩展名
     if (TEXT_FILE_EXTENSIONS.has(ext)) {
-      fileInfoLogger.info({ file: fileName, extension: ext }, "根据扩展名判定为文本文件");
       return true;
     }
 
@@ -102,7 +100,6 @@ export class FileInfoService {
             }
           }
           if (matches) {
-            fileInfoLogger.info({ file: fileName, signatureMatched: true }, "根据文件签名判定为二进制文件");
             return false;
           }
         }
@@ -125,24 +122,9 @@ export class FileInfoService {
       const nullRatio = nullBytes / sample.length;
       const nonPrintableRatio = nonPrintable / sample.length;
 
-      const isText = nullRatio < 0.01 && nonPrintableRatio < 0.3;
-
-      fileInfoLogger.info(
-        {
-          file: fileName,
-          nullRatio: nullRatio.toFixed(4),
-          nonPrintableRatio: nonPrintableRatio.toFixed(4),
-          isText
-        },
-        `根据内容分析判定为${isText ? '文本' : '二进制'}文件`
-      );
-
-      return isText;
+      return nullRatio < 0.01 && nonPrintableRatio < 0.3;
     } catch (err) {
-      fileInfoLogger.warn(
-        { file: fileName, error: err },
-        "文本文件检测失败，假设为二进制文件"
-      );
+      fileInfoLogger.debug({ file: path.basename(filePath), err }, "文件类型检测失败");
       return false;
     }
   }
@@ -311,64 +293,35 @@ export class FileInfoService {
    * 检查文件是否可以安全读取
    */
   private validateFile(filePath: string): { valid: boolean; error?: string } {
-    const fileName = path.basename(filePath);
-
     try {
-      // 检查文件是否存在
       if (!fs.existsSync(filePath)) {
-        fileInfoLogger.warn({ file: fileName, path: filePath }, "文件验证失败: 文件不存在");
         return { valid: false, error: "文件不存在" };
       }
 
-      // 获取文件状态
       const stats = fs.statSync(filePath);
 
-      // 检查是否为文件
       if (!stats.isFile()) {
-        fileInfoLogger.warn({ file: fileName, isDirectory: stats.isDirectory() }, "文件验证失败: 不是有效的文件");
         return { valid: false, error: "不是有效的文件" };
       }
 
-      // 检查文件大小
       if (stats.size === 0) {
-        fileInfoLogger.warn({ file: fileName }, "文件验证失败: 文件为空");
         return { valid: false, error: "文件为空" };
       }
 
-      // 检查文件大小是否过大（超过2GB可能有问题）
       const maxSize = 2 * 1024 * 1024 * 1024; // 2GB
       if (stats.size > maxSize) {
-        const sizeMB = (stats.size / 1024 / 1024).toFixed(2);
-        fileInfoLogger.warn({ file: fileName, sizeMB }, `文件验证失败: 文件过大 (${sizeMB}MB)`);
-        return { valid: false, error: `文件过大 (${sizeMB}MB)` };
+        return { valid: false, error: `文件过大 (${(stats.size / 1024 / 1024).toFixed(0)}MB)` };
       }
 
-      // 检查文件权限
       try {
         fs.accessSync(filePath, fs.constants.R_OK);
       } catch {
-        fileInfoLogger.warn({ file: fileName }, "文件验证失败: 文件读取权限不足");
         return { valid: false, error: "文件读取权限不足" };
       }
 
-      // 验证通过
-      fileInfoLogger.info(
-        {
-          file: fileName,
-          sizeKB: (stats.size / 1024).toFixed(2),
-          modified: stats.mtime.toISOString()
-        },
-        "文件验证通过"
-      );
-
       return { valid: true };
     } catch (err) {
-      const error = err instanceof Error ? err.message : "文件验证失败";
-      fileInfoLogger.error({ file: fileName, error: err }, `文件验证异常: ${error}`);
-      return {
-        valid: false,
-        error,
-      };
+      return { valid: false, error: err instanceof Error ? err.message : "文件验证失败" };
     }
   }
 
@@ -379,126 +332,35 @@ export class FileInfoService {
    */
   async getFileDescription(filePath: string): Promise<string> {
     const fileName = path.basename(filePath);
-    const startTime = Date.now();
-
-    fileInfoLogger.info({ file: fileName, path: filePath }, "开始获取文件描述信息");
 
     // 预检查文件
     const validation = this.validateFile(filePath);
     if (!validation.valid) {
-      fileInfoLogger.warn(
-        {
-          file: fileName,
-          reason: validation.error,
-          fallback: true,
-          duration: Date.now() - startTime
-        },
-        "文件预检查失败，使用备用方法"
-      );
+      fileInfoLogger.debug({ file: fileName, reason: validation.error }, "文件验证失败，使用备用方法");
       return this.getFileDescriptionFallbackPrompt(filePath);
     }
 
-    // 检查是否为文本文件
     const isText = this.isTextFile(filePath);
-    fileInfoLogger.info({ file: fileName, isTextFile: isText }, `文件类型检测: ${isText ? '文本文件' : '二进制文件'}`);
 
     if (isText) {
       try {
-        fileInfoLogger.info({ file: fileName }, "尝试读取文本文件内容");
         const summary = this.generateTextFileDescription(filePath);
-
-        // 对于文本文件，只有内容摘要有价值时才返回，否则返回空让AI推断
         if (summary && summary.trim()) {
-          const prompt = this.formatFilePrompt("", summary);
-          fileInfoLogger.info(
-            {
-              file: fileName,
-              summaryLength: summary.length,
-              type: "text",
-              duration: Date.now() - startTime
-            },
-            "文本文件描述获取成功"
-          );
-          return prompt;
-        } else {
-          // 没有有价值的内容，返回空让AI完全推断
-          fileInfoLogger.info(
-            {
-              file: fileName,
-              duration: Date.now() - startTime
-            },
-            "文本文件无特殊内容，返回空描述让AI基于文件名推断"
-          );
-          return this.formatFilePrompt("", "");
+          return this.formatFilePrompt("", summary);
         }
+        return this.formatFilePrompt("", "");
       } catch (err) {
-        fileInfoLogger.warn(
-          {
-            file: fileName,
-            error: err instanceof Error ? err.message : String(err),
-          },
-          "读取文本文件失败，尝试使用exiftool"
-        );
-        // 继续使用exiftool处理
+        fileInfoLogger.debug({ file: fileName, err }, "文本读取失败，尝试使用 exiftool");
       }
     }
 
     // 使用 exiftool 提取元数据
     try {
-      fileInfoLogger.info({ file: fileName }, "尝试使用exiftool提取文件元数据");
       const tags = await exiftool.read(filePath);
       const tagsString = this.getMetadataTagsString(tags, filePath);
-
-      // 对于元数据文件，标签字符串已经包含所有有价值信息，摘要设为空
-      const prompt = this.formatFilePrompt(tagsString, "");
-
-      fileInfoLogger.info(
-        {
-          file: fileName,
-          extractedTagsCount: Object.keys(tags).length,
-          valuableTagsLength: tagsString.length,
-          type: "metadata",
-          duration: Date.now() - startTime
-        },
-        "元数据提取成功"
-      );
-
-      return prompt;
+      return this.formatFilePrompt(tagsString, "");
     } catch (err) {
-      // 提供详细的错误信息
-      const errorInfo = {
-        file: fileName,
-        filePath,
-        errorMessage: err instanceof Error ? err.message : String(err),
-        errorName: err instanceof Error ? err.name : "Unknown",
-        duration: Date.now() - startTime
-      };
-
-      // 根据错误类型提供不同的处理建议
-      let errorCategory = "未知错误";
-      const errorMessage = errorInfo.errorMessage.toLowerCase();
-
-      if (errorMessage.includes("permission") || errorMessage.includes("access")) {
-        errorCategory = "权限错误";
-      } else if (errorMessage.includes("file not found") || errorMessage.includes("enoent")) {
-        errorCategory = "文件不存在";
-      } else if (errorMessage.includes("busy") || errorMessage.includes("lock")) {
-        errorCategory = "文件被占用";
-      } else if (errorMessage.includes("unsupported") || errorMessage.includes("format")) {
-        errorCategory = "不支持的文件格式";
-      } else if (errorMessage.includes("timeout")) {
-        errorCategory = "读取超时";
-      }
-
-      fileInfoLogger.warn(
-        {
-          ...errorInfo,
-          category: errorCategory
-        },
-        `元数据提取失败 (${errorCategory})，使用备用方法`
-      );
-
-      // 尝试备用方法：基于文件名和扩展名生成基础描述
+      fileInfoLogger.debug({ file: fileName, err }, "元数据提取失败，使用备用方法");
       return this.getFileDescriptionFallbackPrompt(filePath);
     }
   }
@@ -550,12 +412,8 @@ export class FileInfoService {
             tagsList.push(`${field}: ${stringValue}`);
           }
         }
-      } catch (err) {
+      } catch {
         // 单个字段处理失败不影响其他字段
-        fileInfoLogger.debug(
-          { field, error: err },
-          "处理元数据字段时出错，跳过该字段"
-        );
       }
     });
 
@@ -566,19 +424,6 @@ export class FileInfoService {
    * 备用文件描述获取方法（返回空描述让 AI 推断）
    */
   private getFileDescriptionFallbackPrompt(filePath: string): string {
-    const fileName = path.basename(filePath);
-    const ext = path.extname(filePath).toLowerCase();
-
-    fileInfoLogger.info(
-      {
-        file: fileName,
-        extension: ext,
-        method: "fallback"
-      },
-      "使用备用方法：返回空描述让AI基于文件名和扩展名推断"
-    );
-
-    // 完全依赖AI根据文件名推断，不提供任何预设信息
     return this.formatFilePrompt("", "");
   }
 
@@ -764,8 +609,8 @@ export class FileInfoService {
   public async cleanupExiftool() {
     try {
       await exiftool.end();
-    } catch (err) {
-      fileInfoLogger.error({ error: err }, "关闭 exiftool 失败");
+    } catch {
+      // Ignore cleanup errors
     }
   }
 
@@ -774,9 +619,9 @@ export class FileInfoService {
    */
   public cleanupExiftoolSync() {
     try {
-      exiftool.end(); // sync 关闭，保证进程退出
-    } catch (err) {
-      fileInfoLogger.error({ error: err }, "同步关闭 exiftool 失败");
+      exiftool.end();
+    } catch {
+      // Ignore cleanup errors
     }
   }
 }

@@ -21,6 +21,11 @@ export function NavMain({
 }) {
   const location = useLocation();
 
+  const isActive = (itemId: string) => {
+    const itemPath = `/${itemId}`;
+    return location.pathname === itemPath || location.pathname.startsWith(`${itemPath}/`);
+  };
+
   return (
     <SidebarGroup>
       <SidebarGroupContent className="flex flex-col gap-2">
@@ -30,7 +35,7 @@ export function NavMain({
               <SidebarMenuButton
                 className="data-[active=true]:bg-sidebar-primary data-[active=true]:text-sidebar-primary-foreground"
                 tooltip={item.title}
-                isActive={location.pathname === `/${item.id}`}
+                isActive={isActive(item.id)}
                 asChild
               >
                 <Link to={`/${item.id}`}>

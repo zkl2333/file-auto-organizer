@@ -6,7 +6,7 @@ import cors from "@fastify/cors";
 import { config, CONFIG_BASE_DIR, findConfigFile, getConfigSnapshot } from "./config.js";
 import { MainService } from "./service/main.service.js";
 import { FileScanService } from "./service/file-scan.service.js";
-import { StatsService } from "./service/stats.service.js";
+import { StatsService, TaskStatsRecord } from "./service/stats.service.js";
 import { LogModule, GLOBAL_LOG_PATHS, getTaskLogPath } from "./logger.js";
 import { systemLogger as logger } from "./logger.js";
 
@@ -88,7 +88,7 @@ function getLogs(type: string, limit: number = 200): string[] {
     const lines = content.split("\n").filter((line) => line.trim());
     return lines.slice(-limit);
   } catch (error) {
-    logger.error({ error, logPath }, "读取日志文件失败");
+    logger.debug({ err: error, logPath }, "读取日志文件失败");
     return [];
   }
 }
@@ -114,7 +114,7 @@ function getConfig() {
       };
     }
   } catch (error) {
-    logger.error({ error, configPath }, "读取配置文件失败");
+    logger.error({ err: error }, "读取配置失败");
     throw error;
   }
 }
@@ -137,7 +137,7 @@ function updateConfigYaml(yamlContent: string) {
       message: "配置已保存,请重启服务使配置生效",
     };
   } catch (error) {
-    logger.error({ error }, "更新配置文件失败");
+    logger.error({ err: error }, "更新配置失败");
     return {
       success: false,
       message: "保存配置失败",
@@ -167,7 +167,7 @@ function updateConfigJson(configJson: Record<string, any>) {
       message: "配置已保存，请重启服务使配置生效",
     };
   } catch (error) {
-    logger.error({ error }, "更新配置文件失败");
+    logger.error({ err: error }, "更新配置失败");
     return {
       success: false,
       message: "保存配置失败",
@@ -198,9 +198,8 @@ async function triggerTask(dryRun: boolean = false) {
         lastRunTime = new Date();
         lastRunStats = stats;
 
-        // 记录统计数据（包括 dry-run 模式，但用标志区分）
         if (stats.status !== 'failed') {
-          const aiCalls = stats.aiClassified > 0 ? 1 : 0; // 简化：一次任务算一次 AI 调用
+          const aiCalls = stats.aiClassified > 0 ? 1 : 0;
           statsService.recordTaskStats({
             taskId: stats.taskId,
             startTime: new Date(Date.now() - stats.duration).toISOString(),
@@ -214,14 +213,12 @@ async function triggerTask(dryRun: boolean = false) {
             fileTypes: stats.fileTypes,
             status: stats.status,
             errorMessage: stats.errorMessage,
-            dryRun: dryRun, // 使用实际的 dryRun 标志
+            dryRun: dryRun,
           });
         }
-
-        logger.info({ stats, dryRun }, `手动触发的任务执行完成${dryRun ? "(dry-run)" : ""}`);
       })
       .catch((error) => {
-        logger.error({ error }, "触发任务执行失败");
+        logger.error({ err: error }, "任务执行失败");
       });
 
     return {
@@ -229,7 +226,7 @@ async function triggerTask(dryRun: boolean = false) {
       message: `任务已触发，正在后台执行${dryRun ? "(dry-run模式)" : ""}`,
     };
   } catch (error) {
-    logger.error({ error }, "触发任务失败");
+    logger.error({ err: error }, "触发任务失败");
     return {
       success: false,
       message: "触发任务失败",
@@ -263,7 +260,7 @@ export async function startServer(mainService?: MainService) {
       const stats = await getStats();
       reply.send(stats);
     } catch (error) {
-      logger.error({ error }, "获取统计信息失败");
+      logger.error({ err: error }, "获取统计信息失败");
       reply.status(500).send({
         error: "Internal Server Error",
         message: error instanceof Error ? error.message : String(error),
@@ -280,15 +277,55 @@ export async function startServer(mainService?: MainService) {
       // 获取任务运行状态
       const runningStatus = MainService.getRunningStatus();
 
+      // 获取最近一次任务记录
+      let lastTask: TaskStatsRecord | null = null;
+      const tasks = statsService.getAllTaskRecords();
+      
+      // 检查是否有运行中的任务
+      if (runningStatus.isRunning && runningStatus.taskId && runningStatus.startTime) {
+        const existingTask = tasks.find(t => t.taskId === runningStatus.taskId);
+        const now = Date.now();
+        
+        if (existingTask) {
+          // 更新运行中任务的耗时
+          if (existingTask.status === 'running') {
+            existingTask.duration = now - runningStatus.startTime;
+          }
+          lastTask = existingTask;
+        } else {
+          // 创建运行中的任务记录
+          lastTask = {
+            taskId: runningStatus.taskId,
+            timestamp: new Date(runningStatus.startTime).toISOString(),
+            startTime: new Date(runningStatus.startTime).toISOString(),
+            endTime: "",
+            duration: now - runningStatus.startTime,
+            aiCalls: 0,
+            tokensUsed: 0,
+            filesProcessed: 0,
+            similarityMatched: 0,
+            aiClassified: 0,
+            fileTypes: {},
+            status: 'running',
+            dryRun: runningStatus.dryRun,
+          };
+        }
+      } else if (tasks.length > 0) {
+        // 按时间倒序排列，取最近的一条
+        tasks.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+        lastTask = tasks[0];
+      }
+
       reply.send({
         isRunning: runningStatus.isRunning,
         currentTaskId: runningStatus.taskId,
         lastRunTime: lastRunTime ? lastRunTime.toISOString() : null,
         lastRunStats,
         cronEnabled: configSnapshot.CRON_ENABLED,
+        lastTask,
       });
     } catch (error) {
-      logger.error({ error }, "获取任务状态失败");
+      logger.error({ err: error }, "获取任务状态失败");
       reply.status(500).send({
         error: "Internal Server Error",
         message: error instanceof Error ? error.message : String(error),
@@ -308,7 +345,7 @@ export async function startServer(mainService?: MainService) {
         const stats = statsService.getStats(range, includeDryRun);
         reply.send(stats);
       } catch (error) {
-        logger.error({ error }, "获取使用统计失败");
+        logger.error({ err: error }, "获取使用统计失败");
         reply.status(500).send({
           error: "Internal Server Error",
           message: error instanceof Error ? error.message : String(error),
@@ -321,11 +358,46 @@ export async function startServer(mainService?: MainService) {
   server.get("/api/task-history", async (request: FastifyRequest, reply: FastifyReply) => {
     try {
       const tasks = statsService.getAllTaskRecords();
+      
+      // 检查是否有运行中的任务，如果有则添加到列表中或更新现有记录
+      const runningStatus = MainService.getRunningStatus();
+      if (runningStatus.isRunning && runningStatus.taskId && runningStatus.startTime) {
+        // 检查任务列表中是否已存在该任务
+        const existingTaskIndex = tasks.findIndex(t => t.taskId === runningStatus.taskId);
+        const now = Date.now();
+        
+        if (existingTaskIndex === -1) {
+          // 任务不在列表中，创建运行中的任务记录
+          const runningTask: TaskStatsRecord = {
+            taskId: runningStatus.taskId,
+            timestamp: new Date(runningStatus.startTime).toISOString(),
+            startTime: new Date(runningStatus.startTime).toISOString(),
+            endTime: "", // 运行中任务没有结束时间
+            duration: now - runningStatus.startTime,
+            aiCalls: 0,
+            tokensUsed: 0,
+            filesProcessed: 0,
+            similarityMatched: 0,
+            aiClassified: 0,
+            fileTypes: {},
+            status: 'running',
+            dryRun: runningStatus.dryRun,
+          };
+          tasks.push(runningTask);
+        } else {
+          // 任务已在列表中，更新运行中任务的耗时（如果状态还是 running）
+          const existingTask = tasks[existingTaskIndex];
+          if (existingTask.status === 'running') {
+            existingTask.duration = now - runningStatus.startTime;
+          }
+        }
+      }
+      
       // 按时间倒序排列
       tasks.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
       reply.send({ tasks });
     } catch (error) {
-      logger.error({ error }, "获取任务历史失败");
+      logger.error({ err: error }, "获取任务历史失败");
       reply.status(500).send({
         error: "Internal Server Error",
         message: error instanceof Error ? error.message : String(error),
@@ -351,7 +423,7 @@ export async function startServer(mainService?: MainService) {
         }
         reply.send(task);
       } catch (error) {
-        logger.error({ error }, "获取任务详情失败");
+        logger.error({ err: error }, "获取任务详情失败");
         reply.status(500).send({
           error: "Internal Server Error",
           message: error instanceof Error ? error.message : String(error),
@@ -372,7 +444,7 @@ export async function startServer(mainService?: MainService) {
         const logs = getLogs(type, limit);
         reply.send({ logs });
       } catch (error) {
-        logger.error({ error }, "读取日志失败");
+        logger.error({ err: error }, "读取日志失败");
         reply.status(500).send({
           error: "Internal Server Error",
           message: error instanceof Error ? error.message : String(error),
@@ -418,7 +490,7 @@ export async function startServer(mainService?: MainService) {
         
         reply.send({ logs });
       } catch (error) {
-        logger.error({ error }, "获取任务日志失败");
+        logger.error({ err: error }, "获取任务日志失败");
         reply.status(500).send({
           error: "Internal Server Error",
           message: error instanceof Error ? error.message : String(error),
@@ -438,7 +510,7 @@ export async function startServer(mainService?: MainService) {
         const result = await triggerTask(dryRun);
         reply.send(result);
       } catch (error) {
-        logger.error({ error }, "触发任务失败");
+        logger.error({ err: error }, "触发任务失败");
         reply.status(500).send({
           error: "Internal Server Error",
           message: error instanceof Error ? error.message : String(error),
@@ -486,7 +558,7 @@ export async function startServer(mainService?: MainService) {
       });
       
       fs.writeFileSync(configPath, updatedYaml, "utf-8");
-      logger.info({ enabled, configPath }, "定时任务开关状态已更新，将在下次任务执行时生效");
+      logger.info({ enabled }, "定时任务开关已更新");
       
       reply.send({
         success: true,
@@ -494,7 +566,7 @@ export async function startServer(mainService?: MainService) {
         enabled,
       });
     } catch (error) {
-      logger.error({ error }, "切换定时任务开关失败");
+      logger.error({ err: error }, "切换定时任务开关失败");
       reply.status(500).send({
         error: "Internal Server Error",
         message: error instanceof Error ? error.message : String(error),
@@ -508,7 +580,7 @@ export async function startServer(mainService?: MainService) {
       const configData = getConfig();
       reply.send(configData);
     } catch (error) {
-      logger.error({ error }, "读取配置失败");
+      logger.error({ err: error }, "读取配置失败");
       reply.status(500).send({
         error: "Internal Server Error",
         message: error instanceof Error ? error.message : String(error),
@@ -535,7 +607,7 @@ export async function startServer(mainService?: MainService) {
         const result = updateConfigYaml(yamlContent);
         reply.send(result);
       } catch (error) {
-        logger.error({ error }, "更新配置失败");
+        logger.error({ err: error }, "更新配置失败");
         reply.status(500).send({
           error: "Internal Server Error",
           message: error instanceof Error ? error.message : String(error),
@@ -552,7 +624,7 @@ export async function startServer(mainService?: MainService) {
       const result = updateConfigJson(request.body);
       reply.send(result);
     } catch (error) {
-      logger.error({ error }, "更新配置失败");
+      logger.error({ err: error }, "更新配置失败");
       reply.status(500).send({
         error: "Internal Server Error",
         message: error instanceof Error ? error.message : String(error),
@@ -629,7 +701,7 @@ export async function startServer(mainService?: MainService) {
           });
         }
       } catch (error) {
-        logger.error({ error }, "浏览文件失败");
+        logger.error({ err: error }, "GET /api/files failed");
         reply.status(500).send({
           error: "Internal Server Error",
           message: error instanceof Error ? error.message : String(error),
@@ -641,9 +713,9 @@ export async function startServer(mainService?: MainService) {
   // 启动服务器
   try {
     await server.listen({ port: PORT, host: "0.0.0.0" });
-    logger.info({ port: PORT }, "HTTP服务器已启动");
+    logger.info({ port: PORT }, "HTTP 服务器已启动");
   } catch (error) {
-    logger.error({ error }, "启动HTTP服务器失败");
+    logger.error({ err: error }, "启动 HTTP 服务器失败");
     throw error;
   }
 

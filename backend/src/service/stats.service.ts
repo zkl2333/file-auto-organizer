@@ -16,7 +16,7 @@ export interface TaskStatsRecord {
   similarityMatched: number; // 相似度匹配的文件数
   aiClassified: number; // AI分类的文件数
   fileTypes: Record<string, number>; // 文件类型分布 { ".pdf": 3, ".mp4": 1 }
-  status: 'success' | 'partial' | 'failed'; // 任务状态
+  status: 'success' | 'partial' | 'failed' | 'running'; // 任务状态
   errorMessage?: string; // 错误信息（如果有）
   dryRun: boolean; // 是否为模拟运行
 }

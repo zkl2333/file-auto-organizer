@@ -47,7 +47,7 @@ export class FileMoveService {
     } catch (err: any) {
       if ((err?.code === "EBUSY" || err?.code === "EACCES" || err?.code === "EPERM") && attempt < FILE_MAX_RETRIES) {
         const delay = FILE_RETRY_DELAY_BASE * Math.pow(2, attempt - 1);
-        fileMoveLogger.warn({ src, finalPath, attempt, delay, error: err.message }, "源文件占用，等待删除重试");
+        fileMoveLogger.debug({ src: path.basename(src), attempt, delay }, "源文件被占用，重试删除");
         await this.sleep(delay);
         return this.unlinkWithRetryRecursive(src, finalPath, attempt + 1);
       }
@@ -111,9 +111,9 @@ export class FileMoveService {
    * 占用类错误递归退避重试，ENOENT 视为已处理。
    */
   private async attemptMoveRecursive(file: string, targetDir: string, desiredTargetPath: string, attempt: number = 1): Promise<void> {
+    const fileName = path.basename(file);
     try {
       fs.renameSync(file, desiredTargetPath);
-      fileMoveLogger.info({ from: file, to: desiredTargetPath }, "文件已移动");
       return;
     } catch (err: any) {
       if (err?.code === "EEXIST") {
@@ -121,21 +121,20 @@ export class FileMoveService {
         return this.attemptMoveRecursive(file, targetDir, uniquePath, attempt);
       }
       if (err?.code === "EXDEV") {
-        const finalPath = await this.copyThenUnlinkWithFinalize(file, targetDir, desiredTargetPath);
-        fileMoveLogger.info({ from: file, to: finalPath }, "文件已移动（跨设备回退复制）");
+        await this.copyThenUnlinkWithFinalize(file, targetDir, desiredTargetPath);
         return;
       }
       if (err?.code === "ENOENT") {
-        fileMoveLogger.warn({ file }, "源文件不存在，跳过移动");
+        fileMoveLogger.warn({ file: fileName }, "源文件不存在，跳过移动");
         return;
       }
       if ((err?.code === "EBUSY" || err?.code === "EACCES" || err?.code === "EPERM") && attempt < FILE_MAX_RETRIES) {
         const delay = FILE_RETRY_DELAY_BASE * Math.pow(2, attempt - 1);
-        fileMoveLogger.warn({ file, attempt, maxRetries: FILE_MAX_RETRIES, delay, error: err.message }, "文件被占用，等待重试");
+        fileMoveLogger.debug({ file: fileName, attempt, delay }, "文件被占用，等待重试");
         await this.sleep(delay);
         return this.attemptMoveRecursive(file, targetDir, desiredTargetPath, attempt + 1);
       }
-      fileMoveLogger.error({ file, desiredTargetPath, error: err?.message }, "文件移动失败");
+      fileMoveLogger.error({ file: fileName, err: err?.message }, "文件移动失败");
       throw err;
     }
   }
@@ -144,14 +143,13 @@ export class FileMoveService {
    * 移动文件到目标目录
    */
   async moveFile(file: string, targetDir: string, dryRun: boolean = false): Promise<void> {
-    // 归一化：若 targetDir 末段等于文件名，剥离末段，避免目录/文件同名嵌套
     const fileBaseName = path.basename(file);
     const targetDirBase = path.basename(targetDir);
     const normalizedTargetDir = targetDirBase === fileBaseName ? path.dirname(targetDir) : targetDir;
     const targetPath = path.join(normalizedTargetDir, fileBaseName);
 
     if (dryRun) {
-      fileMoveLogger.info(`[dry-run] ${file} -> ${targetDir}`);
+      fileMoveLogger.debug({ file: fileBaseName, to: normalizedTargetDir }, "[dry-run] 模拟移动");
       return;
     }
 

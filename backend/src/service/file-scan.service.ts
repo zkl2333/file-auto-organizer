@@ -29,13 +29,9 @@ export class FileScanService {
 
     if (fs.existsSync(rootDir)) {
       walk(rootDir);
-      fileScanLogger.info({
-        rootDir,
-        dirCount: result.length,
-        maxDepth: MAX_SCAN_DEPTH,
-      }, `扫描目录结构完成，发现 ${result.length} 个目录`);
+      fileScanLogger.debug({ dirs: result.length }, "扫描目录完成");
     } else {
-      fileScanLogger.warn(`根目录不存在: ${rootDir}`);
+      fileScanLogger.warn({ rootDir }, "根目录不存在");
     }
     return result;
   }
@@ -64,13 +60,9 @@ export class FileScanService {
 
     if (fs.existsSync(rootDir)) {
       walk(rootDir);
-      fileScanLogger.info({
-        rootDir,
-        fileCount: result.length,
-        maxDepth: MAX_SCAN_DEPTH,
-      }, `扫描文件完成，发现 ${result.length} 个文件`);
+      fileScanLogger.debug({ files: result.length }, "扫描文件完成");
     } else {
-      fileScanLogger.warn(`根目录不存在: ${rootDir}`);
+      fileScanLogger.warn({ rootDir }, "根目录不存在");
     }
     return result;
   }
@@ -80,16 +72,13 @@ export class FileScanService {
    */
   getIncomingFiles(incomingDir: string): string[] {
     if (!fs.existsSync(incomingDir)) {
-      fileScanLogger.warn(`待分类目录不存在: ${incomingDir}`);
+      fileScanLogger.warn({ incomingDir }, "待分类目录不存在");
       return [];
     }
 
     const files = fs.readdirSync(incomingDir);
     const fileList = files.filter((f) => fs.statSync(path.join(incomingDir, f)).isFile());
-    fileScanLogger.info({
-      incomingDir,
-      fileCount: fileList.length,
-    }, `扫描到 ${fileList.length} 个待分类文件`);
+    fileScanLogger.debug({ files: fileList.length }, "扫描待分类文件完成");
     return fileList;
   }
 }
