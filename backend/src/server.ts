@@ -3,11 +3,11 @@ import path from "node:path";
 import yaml from "js-yaml";
 import Fastify, { FastifyRequest, FastifyReply } from "fastify";
 import cors from "@fastify/cors";
-import { config, CONFIG_BASE_DIR, findConfigFile } from "./config.js";
+import { config, CONFIG_BASE_DIR, findConfigFile, getConfigSnapshot } from "./config.js";
 import { MainService } from "./service/main.service.js";
 import { FileScanService } from "./service/file-scan.service.js";
 import { StatsService } from "./service/stats.service.js";
-import { LoggerType, LOG_PATHS } from "./logger.js";
+import { LoggerType, LOG_PATHS, getTaskLogPath } from "./logger.js";
 import { systemLogger as logger } from "./logger.js";
 
 const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3001;
@@ -204,10 +204,19 @@ async function triggerTask(dryRun: boolean = false) {
         if (!dryRun) {
           const aiCalls = stats.aiClassified > 0 ? 1 : 0; // 简化：一次任务算一次 AI 调用
           statsService.recordTaskStats({
+            taskId: stats.taskId,
+            startTime: new Date(Date.now() - stats.duration).toISOString(),
+            endTime: new Date().toISOString(),
+            duration: stats.duration,
             aiCalls,
             tokensUsed: stats.tokensUsed,
             filesProcessed: stats.totalProcessed,
+            similarityMatched: stats.similarityMatched,
+            aiClassified: stats.aiClassified,
             fileTypes: stats.fileTypes,
+            status: stats.status,
+            errorMessage: stats.errorMessage,
+            dryRun: false,
           });
         }
         
@@ -269,10 +278,14 @@ export async function startServer(mainService?: MainService) {
   // GET /api/status
   server.get("/api/status", async (request: FastifyRequest, reply: FastifyReply) => {
     try {
+      // 获取当前配置快照
+      const configSnapshot = getConfigSnapshot();
+      
       reply.send({
         isRunning,
         lastRunTime: lastRunTime ? lastRunTime.toISOString() : null,
         lastRunStats,
+        cronEnabled: configSnapshot.CRON_ENABLED,
       });
     } catch (error) {
       logger.error({ error }, "获取任务状态失败");
@@ -303,7 +316,50 @@ export async function startServer(mainService?: MainService) {
     }
   );
 
-  // GET /api/logs
+  // GET /api/task-history - 获取所有任务历史
+  server.get("/api/task-history", async (request: FastifyRequest, reply: FastifyReply) => {
+    try {
+      const tasks = statsService.getAllTaskRecords();
+      // 按时间倒序排列
+      tasks.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+      reply.send({ tasks });
+    } catch (error) {
+      logger.error({ error }, "获取任务历史失败");
+      reply.status(500).send({
+        error: "Internal Server Error",
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  });
+
+  // GET /api/task/:taskId - 获取单个任务详情
+  server.get<{
+    Params: { taskId: string };
+  }>(
+    "/api/task/:taskId",
+    async (request: FastifyRequest<{ Params: { taskId: string } }>, reply: FastifyReply) => {
+      try {
+        const taskId = request.params.taskId;
+        const task = statsService.getTaskRecord(taskId);
+        if (!task) {
+          reply.status(404).send({
+            error: "Not Found",
+            message: `任务 ${taskId} 不存在`,
+          });
+          return;
+        }
+        reply.send(task);
+      } catch (error) {
+        logger.error({ error }, "获取任务详情失败");
+        reply.status(500).send({
+          error: "Internal Server Error",
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+  );
+
+  // GET /api/logs - 获取系统日志
   server.get<{
     Querystring: { type?: string; limit?: string };
   }>(
@@ -316,6 +372,52 @@ export async function startServer(mainService?: MainService) {
         reply.send({ logs });
       } catch (error) {
         logger.error({ error }, "读取日志失败");
+        reply.status(500).send({
+          error: "Internal Server Error",
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+  );
+
+  // GET /api/task/:taskId/logs - 获取任务级日志
+  server.get<{
+    Params: { taskId: string };
+    Querystring: { type?: string; limit?: string };
+  }>(
+    "/api/task/:taskId/logs",
+    async (request: FastifyRequest<{ Params: { taskId: string }; Querystring: { type?: string; limit?: string } }>, reply: FastifyReply) => {
+      try {
+        const taskId = request.params.taskId;
+        const type = request.query.type || "main";
+        const limit = parseInt(request.query.limit || "200");
+        
+        // 检查任务是否存在
+        const task = statsService.getTaskRecord(taskId);
+        if (!task) {
+          reply.status(404).send({
+            error: "Not Found",
+            message: `任务 ${taskId} 不存在`,
+          });
+          return;
+        }
+        
+        // 获取任务日志文件路径
+        const logPath = getTaskLogPath(type as LoggerType, taskId);
+        
+        if (!fs.existsSync(logPath)) {
+          reply.send({ logs: [] });
+          return;
+        }
+        
+        // 读取日志文件
+        const content = fs.readFileSync(logPath, "utf-8");
+        const allLines = content.split("\n").filter(line => line.trim());
+        const logs = allLines.slice(-limit);
+        
+        reply.send({ logs });
+      } catch (error) {
+        logger.error({ error }, "获取任务日志失败");
         reply.status(500).send({
           error: "Internal Server Error",
           message: error instanceof Error ? error.message : String(error),
@@ -343,6 +445,61 @@ export async function startServer(mainService?: MainService) {
       }
     }
   );
+
+  // POST /api/cron/toggle - 切换定时任务开关
+  server.post<{
+    Body: { enabled: boolean };
+  }>("/api/cron/toggle", async (request: FastifyRequest<{ Body: { enabled: boolean } }>, reply: FastifyReply) => {
+    try {
+      const { enabled } = request.body;
+      if (typeof enabled !== "boolean") {
+        reply.status(400).send({
+          error: "Bad Request",
+          message: "enabled 参数必须为布尔值",
+        });
+        return;
+      }
+
+      // 直接修改配置文件，下次任务执行时自动生效
+      const configPath = findConfigFile();
+      if (!configPath || !fs.existsSync(configPath)) {
+        reply.status(404).send({
+          error: "Not Found",
+          message: "配置文件不存在",
+        });
+        return;
+      }
+
+      const yamlContent = fs.readFileSync(configPath, "utf-8");
+      const configJson = yaml.load(yamlContent) as Record<string, any>;
+      
+      if (!configJson.cron) {
+        configJson.cron = {};
+      }
+      configJson.cron.enabled = enabled;
+      
+      const updatedYaml = yaml.dump(configJson, {
+        indent: 2,
+        lineWidth: -1,
+        noRefs: true,
+      });
+      
+      fs.writeFileSync(configPath, updatedYaml, "utf-8");
+      logger.info({ enabled, configPath }, "定时任务开关状态已更新，将在下次任务执行时生效");
+      
+      reply.send({
+        success: true,
+        message: enabled ? "定时任务已启用，将在下次执行时生效" : "定时任务已禁用，将在下次执行时生效",
+        enabled,
+      });
+    } catch (error) {
+      logger.error({ error }, "切换定时任务开关失败");
+      reply.status(500).send({
+        error: "Internal Server Error",
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  });
 
   // GET /api/config
   server.get("/api/config", async (request: FastifyRequest, reply: FastifyReply) => {

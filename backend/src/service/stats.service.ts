@@ -5,11 +5,20 @@ import { systemLogger } from "../logger.js";
 
 // 单次任务统计记录
 export interface TaskStatsRecord {
+  taskId: string; // 任务唯一ID
   timestamp: string; // ISO 时间戳
+  startTime: string; // 任务开始时间
+  endTime: string; // 任务结束时间
+  duration: number; // 执行时长（毫秒）
   aiCalls: number; // AI 调用次数
   tokensUsed: number; // Token 消耗
   filesProcessed: number; // 处理文件数
+  similarityMatched: number; // 相似度匹配的文件数
+  aiClassified: number; // AI分类的文件数
   fileTypes: Record<string, number>; // 文件类型分布 { ".pdf": 3, ".mp4": 1 }
+  status: 'success' | 'partial' | 'failed'; // 任务状态
+  errorMessage?: string; // 错误信息（如果有）
+  dryRun: boolean; // 是否为模拟运行
 }
 
 // 聚合统计结果
@@ -88,6 +97,21 @@ export class StatsService {
     records.push(newRecord);
     this.writeRecords(records);
     systemLogger.info({ stats: newRecord }, "任务统计已记录");
+  }
+
+  /**
+   * 获取所有任务记录
+   */
+  getAllTaskRecords(): TaskStatsRecord[] {
+    return this.readRecords();
+  }
+
+  /**
+   * 根据任务ID获取任务记录
+   */
+  getTaskRecord(taskId: string): TaskStatsRecord | null {
+    const records = this.readRecords();
+    return records.find(r => r.taskId === taskId) || null;
   }
 
   /**

@@ -201,10 +201,7 @@ cron:
 如果需要本地开发或调试：
 
 ```bash
-# 安装 Bun（后端需要）
-curl -fsSL https://bun.sh/install | bash
-
-# 安装 Node.js（前端需要，建议 v18+）
+# 安装 Node.js（建议 v18+）
 # macOS/Linux: 使用 nvm 或从官网下载
 # Windows: 从官网下载或使用 nvm-windows
 
@@ -212,10 +209,8 @@ curl -fsSL https://bun.sh/install | bash
 git clone https://github.com/zkl2333/file-auto-organizer.git
 cd file-auto-organizer
 
-# 安装依赖（前后端独立安装）
-# 后端使用 Bun
-cd backend && bun install && cd ..
-# 前端使用 Node.js/npm
+# 安装依赖（前后端都使用 npm）
+cd backend && npm install && cd ..
 cd frontend && npm install && cd ..
 
 # 安装根目录开发依赖（用于同时运行前后端）

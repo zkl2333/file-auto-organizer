@@ -27,6 +27,7 @@ export interface TaskStatus {
     totalProcessed: number;
     duration: number;
   } | null;
+  cronEnabled: boolean | null;
 }
 
 export interface LogEntry {
@@ -64,6 +65,7 @@ export interface ConfigJson {
     incoming_dir: string;
   };
   cron: {
+    enabled: boolean;
     schedule: string;
   };
   logging: {
@@ -94,6 +96,23 @@ export interface UsageStats {
     tokensUsed: number;
     filesProcessed: number;
   }>;
+}
+
+export interface TaskRecord {
+  taskId: string;
+  timestamp: string;
+  startTime: string;
+  endTime: string;
+  duration: number;
+  aiCalls: number;
+  tokensUsed: number;
+  filesProcessed: number;
+  similarityMatched: number;
+  aiClassified: number;
+  fileTypes: Record<string, number>;
+  status: 'success' | 'partial' | 'failed';
+  errorMessage?: string;
+  dryRun: boolean;
 }
 
 export const api = {
@@ -146,6 +165,30 @@ export const api = {
   getUsageStats: async (range: 'today' | 'week' | 'month' | 'all' = 'all'): Promise<UsageStats> => {
     const res = await fetch(`/api/usage-stats?range=${range}`);
     return res.json();
-  }
+  },
+
+  getTaskHistory: async (): Promise<{ tasks: TaskRecord[] }> => {
+    const res = await fetch('/api/task-history');
+    return res.json();
+  },
+
+  getTaskDetail: async (taskId: string): Promise<TaskRecord> => {
+    const res = await fetch(`/api/task/${taskId}`);
+    return res.json();
+  },
+
+  getTaskLogs: async (taskId: string, type: string = 'main', limit: number = 200): Promise<{ logs: string[] }> => {
+    const res = await fetch(`/api/task/${taskId}/logs?type=${type}&limit=${limit}`);
+    return res.json();
+  },
+
+  toggleCron: async (enabled: boolean): Promise<{ success: boolean; message: string; enabled: boolean }> => {
+    const res = await fetch('/api/cron/toggle', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled })
+    });
+    return res.json();
+  },
 };
 

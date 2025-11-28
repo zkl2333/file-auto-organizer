@@ -5,6 +5,7 @@ import Stats from './routes/stats';
 import Logs from './routes/logs';
 import Trigger from './routes/trigger';
 import Config from './routes/config';
+import TaskHistory from './routes/task-history';
 
 export const routes: RouteObject[] = [
   {
@@ -30,6 +31,10 @@ export const routes: RouteObject[] = [
       {
         path: 'config',
         element: <Config />,
+      },
+      {
+        path: 'task-history',
+        element: <TaskHistory />,
       },
     ],
   },

@@ -1,6 +1,7 @@
 import path from "node:path";
+import { randomBytes } from "node:crypto";
 import levenshtein from "fast-levenshtein";
-import { mainLogger, fileMoveLogger, flushLogs } from "../logger.js";
+import { mainLogger, fileMoveLogger, flushLogs, setCurrentTaskId } from "../logger.js";
 import { config } from "../config.js";
 import { FileScanService } from "./file-scan.service.js";
 import { FileMoveService } from "./file-move.service.js";
@@ -84,18 +85,40 @@ export class MainService {
   }
 
   /**
+   * 生成任务ID
+   */
+  private generateTaskId(): string {
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+    const random = randomBytes(4).toString('hex');
+    return `task-${timestamp}-${random}`;
+  }
+
+  /**
    * 执行一次完整的分类任务
    */
   async runOnce(dryRun: boolean = false): Promise<{
+    taskId: string;
     similarityMatched: number;
     aiClassified: number;
     totalProcessed: number;
     duration: number;
     tokensUsed: number;
     fileTypes: Record<string, number>;
+    status: 'success' | 'partial' | 'failed';
+    errorMessage?: string;
   }> {
+    const taskId = this.generateTaskId();
     const startTime = Date.now();
-    mainLogger.info(`开始分类任务...${dryRun ? "(dry-run)" : ""}`);
+    
+    // 设置当前任务ID，启用任务级日志
+    setCurrentTaskId(taskId);
+    
+    mainLogger.info({ taskId, dryRun }, `开始分类任务...${dryRun ? "(dry-run)" : ""}`);
+
+    let taskStatus: 'success' | 'partial' | 'failed' = 'success';
+    let errorMessage: string | undefined;
+
+    try {
 
     // 统计变量
     let totalTokensUsed = 0;
@@ -110,13 +133,16 @@ export class MainService {
 
     if (filesToProcess.length === 0) {
       mainLogger.info("没有需要分类的文件");
+      setCurrentTaskId(null); // 清除任务ID
       return {
+        taskId,
         similarityMatched: 0,
         aiClassified: 0,
         totalProcessed: 0,
         duration: Date.now() - startTime,
         tokensUsed: 0,
         fileTypes: {},
+        status: 'success',
       };
     }
 
@@ -300,7 +326,8 @@ export class MainService {
         mainLogger.info(`AI分批分类完成，总计处理 ${aiSuccessfulMoves}/${needAIClassification.length} 个文件`);
       } catch (err) {
         mainLogger.error({ err }, `AI分批分类过程失败`);
-        throw err;
+        taskStatus = 'failed';
+        errorMessage = err instanceof Error ? err.message : String(err);
       }
     }
 
@@ -311,14 +338,38 @@ export class MainService {
 
     // 确保所有日志都写入文件
     flushLogs();
+    
+    // 清除任务ID
+    setCurrentTaskId(null);
 
     return {
+      taskId,
       similarityMatched: similarityResults.length,
       aiClassified: needAIClassification.length,
       totalProcessed,
       duration,
       tokensUsed: totalTokensUsed,
       fileTypes,
+      status: taskStatus,
+      errorMessage,
     };
+    } catch (error) {
+      // 捕获整个任务执行的错误
+      mainLogger.error({ error, taskId }, "任务执行发生严重错误");
+      flushLogs();
+      setCurrentTaskId(null);
+      
+      return {
+        taskId,
+        similarityMatched: 0,
+        aiClassified: 0,
+        totalProcessed: 0,
+        duration: Date.now() - startTime,
+        tokensUsed: 0,
+        fileTypes: {},
+        status: 'failed',
+        errorMessage: error instanceof Error ? error.message : String(error),
+      };
+    }
   }
 }

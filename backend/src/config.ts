@@ -14,6 +14,7 @@ interface ConfigFile {
     incoming_dir: string;
   };
   cron: {
+    enabled: boolean;
     schedule: string;
   };
   logging: {
@@ -45,6 +46,7 @@ const defaultConfig: ConfigFile = {
     incoming_dir: "./待分类",
   },
   cron: {
+    enabled: true,
     schedule: "0 * * * *",
   },
   logging: {
@@ -157,6 +159,37 @@ function mergeConfig(defaultConfig: ConfigFile, loadedConfig: Partial<ConfigFile
 // 加载配置
 const loadedConfig = loadConfig();
 
+/**
+ * 重新加载配置（用于热更新）
+ */
+export function reloadConfig(): ConfigFile {
+  return loadConfig();
+}
+
+/**
+ * 获取当前配置快照（每次调用重新读取）
+ */
+export function getConfigSnapshot() {
+  const freshConfig = reloadConfig();
+  return {
+    OPENAI_API_KEY: freshConfig.openai.api_key,
+    OPENAI_MODEL: freshConfig.openai.model,
+    OPENAI_BASE_URL: freshConfig.openai.base_url,
+    ROOT_DIR: resolvePath(freshConfig.directories.root_dir),
+    INCOMING_DIR: resolvePath(freshConfig.directories.incoming_dir),
+    CRON_ENABLED: freshConfig.cron.enabled ?? true,
+    CRON_SCHEDULE: freshConfig.cron.schedule,
+    // 以下配置使用环境变量或启动时配置，不支持热更新
+    LOG_LEVEL: process.env.LOG_LEVEL || freshConfig.logging.level,
+    LOG_DIR: process.env.LOG_DIR ? resolvePath(process.env.LOG_DIR) : resolvePath(freshConfig.logging.dir),
+    MAX_SCAN_DEPTH: freshConfig.scan.max_depth,
+    SIMILARITY_THRESHOLD: freshConfig.scan.similarity_threshold,
+    AI_BATCH_SIZE: freshConfig.ai.batch_size,
+    FILE_MAX_RETRIES: freshConfig.file_operations.max_retries,
+    FILE_RETRY_DELAY_BASE: freshConfig.file_operations.retry_delay_base,
+  } as const;
+}
+
 // 导出配置文件基准目录
 export const CONFIG_BASE_DIR = getBaseDir();
 
@@ -168,6 +201,7 @@ export const config = {
   OPENAI_BASE_URL: loadedConfig.openai.base_url,
   ROOT_DIR: resolvePath(loadedConfig.directories.root_dir),
   INCOMING_DIR: resolvePath(loadedConfig.directories.incoming_dir),
+  CRON_ENABLED: loadedConfig.cron.enabled ?? true,
   CRON_SCHEDULE: loadedConfig.cron.schedule,
   LOG_LEVEL: loadedConfig.logging.level,
   LOG_DIR: resolvePath(loadedConfig.logging.dir),

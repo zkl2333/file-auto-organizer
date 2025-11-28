@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
 import { IconLoader2 } from '@tabler/icons-react';
 
 const defaultConfig: ConfigJson = {
@@ -19,6 +20,7 @@ const defaultConfig: ConfigJson = {
     incoming_dir: './待分类',
   },
   cron: {
+    enabled: true,
     schedule: '0 * * * *',
   },
   logging: {
@@ -55,9 +57,9 @@ export const ConfigView: React.FC = () => {
       if (data.json) {
         setConfig({ ...defaultConfig, ...data.json });
       }
-      setMessage({ type: 'info', text: '修改配置后需要重启服务才能生效' });
-    } catch (err: any) {
-      setMessage({ type: 'error', text: '加载失败: ' + err.message });
+      setMessage({ type: 'info', text: '配置修改后无需重启，将在下次任务执行时生效' });
+    } catch (err) {
+      setMessage({ type: 'error', text: '加载失败: ' + (err instanceof Error ? err.message : String(err)) });
     } finally {
       setLoading(false);
     }
@@ -72,8 +74,8 @@ export const ConfigView: React.FC = () => {
       } else {
         setMessage({ type: 'error', text: res.message + (res.error ? ': ' + res.error : '') });
       }
-    } catch (err: any) {
-      setMessage({ type: 'error', text: '保存失败: ' + err.message });
+    } catch (err) {
+      setMessage({ type: 'error', text: '保存失败: ' + (err instanceof Error ? err.message : String(err)) });
     } finally {
       setSaving(false);
     }
@@ -82,7 +84,7 @@ export const ConfigView: React.FC = () => {
   const updateConfig = <K extends keyof ConfigJson>(
     section: K,
     key: keyof ConfigJson[K],
-    value: string | number
+    value: string | number | boolean
   ) => {
     setConfig(prev => ({
       ...prev,
@@ -193,9 +195,24 @@ export const ConfigView: React.FC = () => {
       <Card>
         <CardHeader>
           <CardTitle>定时任务</CardTitle>
-          <CardDescription>配置自动执行的 Cron 表达式</CardDescription>
+          <CardDescription>配置自动执行的定时任务</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="grid gap-4">
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label htmlFor="cron-enabled" className="text-sm font-medium">
+                启用定时任务
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                关闭后将在下次任务执行时生效，无需重启服务
+              </p>
+            </div>
+            <Checkbox
+              id="cron-enabled"
+              checked={config.cron.enabled}
+              onCheckedChange={(checked) => updateConfig('cron', 'enabled', checked === true)}
+            />
+          </div>
           <div className="grid gap-2">
             <Label htmlFor="schedule">Cron 表达式</Label>
             <Input

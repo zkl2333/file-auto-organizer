@@ -3,16 +3,16 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "concurrently -n backend,frontend -c blue,green \"cd backend && bun run dev\" \"cd frontend && npm run dev\"",
-    "dev:backend": "cd backend && bun run dev",
+    "dev": "concurrently -n backend,frontend -c blue,green \"cd backend && npm run dev\" \"cd frontend && npm run dev\"",
+    "dev:backend": "cd backend && npm run dev",
     "dev:frontend": "cd frontend && npm run dev",
-    "build": "cd frontend && npm run build && cd ../backend && bun run build",
-    "build:backend": "cd backend && bun run build",
+    "build": "cd frontend && npm run build && cd ../backend && npm run build",
+    "build:backend": "cd backend && npm run build",
     "build:frontend": "cd frontend && npm run build",
-    "start": "cd backend && bun run start",
-    "test": "cd backend && bun run test",
-    "test:watch": "cd backend && bun run test:watch",
-    "test:coverage": "cd backend && bun run test --coverage"
+    "start": "cd backend && npm run start",
+    "test": "cd backend && npm run test",
+    "test:watch": "cd backend && npm run test:watch",
+    "test:coverage": "cd backend && npm run test --coverage"
   },
   "repository": {
     "type": "git",
