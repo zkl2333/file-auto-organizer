@@ -14,7 +14,6 @@ const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3001;
 
 let mainServiceInstance: MainService | null = null;
 const statsService = new StatsService();
-let isRunning = false;
 let lastRunTime: Date | null = null;
 let lastRunStats: {
   similarityMatched: number;
@@ -181,27 +180,26 @@ function updateConfigJson(configJson: Record<string, any>) {
  * 触发任务执行
  */
 async function triggerTask(dryRun: boolean = false) {
-  if (isRunning) {
+  // 使用 MainService 的静态方法检查运行状态
+  const runningStatus = MainService.getRunningStatus();
+  if (runningStatus.isRunning) {
     return {
       success: false,
-      message: "任务正在执行中，请稍候",
+      message: `任务正在执行中（任务ID: ${runningStatus.taskId}），请稍候`,
     };
   }
 
   try {
-    isRunning = true;
-    
     const service = mainServiceInstance || new MainService();
 
     // 在后台执行任务，不阻塞响应
     service.runOnce(dryRun)
       .then((stats) => {
-        isRunning = false;
         lastRunTime = new Date();
         lastRunStats = stats;
-        
-        // 记录统计数据（仅在非 dry-run 模式下）
-        if (!dryRun) {
+
+        // 记录统计数据（包括 dry-run 模式，但用标志区分）
+        if (stats.status !== 'failed') {
           const aiCalls = stats.aiClassified > 0 ? 1 : 0; // 简化：一次任务算一次 AI 调用
           statsService.recordTaskStats({
             taskId: stats.taskId,
@@ -216,14 +214,13 @@ async function triggerTask(dryRun: boolean = false) {
             fileTypes: stats.fileTypes,
             status: stats.status,
             errorMessage: stats.errorMessage,
-            dryRun: false,
+            dryRun: dryRun, // 使用实际的 dryRun 标志
           });
         }
-        
-        logger.info({ stats }, `手动触发的任务执行完成${dryRun ? "(dry-run)" : ""}`);
+
+        logger.info({ stats, dryRun }, `手动触发的任务执行完成${dryRun ? "(dry-run)" : ""}`);
       })
       .catch((error) => {
-        isRunning = false;
         logger.error({ error }, "触发任务执行失败");
       });
 
@@ -232,7 +229,6 @@ async function triggerTask(dryRun: boolean = false) {
       message: `任务已触发，正在后台执行${dryRun ? "(dry-run模式)" : ""}`,
     };
   } catch (error) {
-    isRunning = false;
     logger.error({ error }, "触发任务失败");
     return {
       success: false,
@@ -280,9 +276,13 @@ export async function startServer(mainService?: MainService) {
     try {
       // 获取当前配置快照
       const configSnapshot = getConfigSnapshot();
-      
+
+      // 获取任务运行状态
+      const runningStatus = MainService.getRunningStatus();
+
       reply.send({
-        isRunning,
+        isRunning: runningStatus.isRunning,
+        currentTaskId: runningStatus.taskId,
         lastRunTime: lastRunTime ? lastRunTime.toISOString() : null,
         lastRunStats,
         cronEnabled: configSnapshot.CRON_ENABLED,
@@ -298,13 +298,14 @@ export async function startServer(mainService?: MainService) {
 
   // GET /api/usage-stats
   server.get<{
-    Querystring: { range?: string };
+    Querystring: { range?: string; includeDryRun?: string };
   }>(
     "/api/usage-stats",
-    async (request: FastifyRequest<{ Querystring: { range?: string } }>, reply: FastifyReply) => {
+    async (request: FastifyRequest<{ Querystring: { range?: string; includeDryRun?: string } }>, reply: FastifyReply) => {
       try {
         const range = (request.query.range || "all") as "today" | "week" | "month" | "all";
-        const stats = statsService.getStats(range);
+        const includeDryRun = request.query.includeDryRun === "true";
+        const stats = statsService.getStats(range, includeDryRun);
         reply.send(stats);
       } catch (error) {
         logger.error({ error }, "获取使用统计失败");

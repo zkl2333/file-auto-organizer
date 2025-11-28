@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { RefreshCw, Download, Search, Copy, ChevronDown, ChevronRight } from 'lucide-react';
+import { RefreshCw, Download, Search, Copy, ChevronDown, ChevronRight, ArrowDown } from 'lucide-react';
 import { toast } from 'sonner';
 
 // 日志级别映射
@@ -56,8 +56,44 @@ export const LogsView: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [expandedLogs, setExpandedLogs] = useState<Set<number>>(new Set());
+  const [isAtBottom, setIsAtBottom] = useState(true);
+  const [showScrollButton, setShowScrollButton] = useState(false);
+
   const logsEndRef = useRef<HTMLDivElement>(null);
-  const shouldAutoScroll = useRef(true);
+  const logsContainerRef = useRef<HTMLDivElement>(null);
+
+  // 检查是否滚动到底部
+  const checkIfAtBottom = useCallback(() => {
+    const container = logsContainerRef.current;
+    if (!container) return true;
+
+    const threshold = 50; // 50px 的阈值
+    const { scrollTop, scrollHeight, clientHeight } = container;
+    const atBottom = scrollHeight - scrollTop - clientHeight < threshold;
+
+    setIsAtBottom(atBottom);
+    setShowScrollButton(!atBottom && filteredLogs.length > 0);
+
+    return atBottom;
+  }, [filteredLogs.length]);
+
+  // 监听滚动事件
+  useEffect(() => {
+    const container = logsContainerRef.current;
+    if (!container) return;
+
+    const handleScroll = () => {
+      checkIfAtBottom();
+    };
+
+    container.addEventListener('scroll', handleScroll, { passive: true });
+    return () => container.removeEventListener('scroll', handleScroll);
+  }, [checkIfAtBottom]);
+
+  // 滚动到底部
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
+    logsEndRef.current?.scrollIntoView({ behavior });
+  }, []);
 
   const loadLogs = useCallback(async () => {
     try {
@@ -105,11 +141,15 @@ export const LogsView: React.FC = () => {
     setFilteredLogs(filtered);
   }, [logs, levelFilter, searchTerm]);
 
+  // 智能自动滚动 - 仅在用户在底部时触发
   useEffect(() => {
-    if (shouldAutoScroll.current && logsEndRef.current) {
-      logsEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    if (isAtBottom && filteredLogs.length > 0) {
+      // 使用 setTimeout 确保 DOM 更新后再滚动
+      setTimeout(() => {
+        scrollToBottom('smooth');
+      }, 100);
     }
-  }, [filteredLogs]);
+  }, [filteredLogs, isAtBottom, scrollToBottom]);
 
   const toggleExpand = (index: number) => {
     const newExpanded = new Set(expandedLogs);
@@ -156,7 +196,7 @@ export const LogsView: React.FC = () => {
             {hasExtraData && (
               <button
                 onClick={() => toggleExpand(index)}
-                className="mt-1 text-gray-400 hover:text-gray-600 flex-shrink-0"
+                className="mt-1 text-gray-400 hover:text-gray-600 shrink-0"
               >
                 {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
               </button>
@@ -222,7 +262,7 @@ export const LogsView: React.FC = () => {
 
             <button
               onClick={() => copyToClipboard(log)}
-              className="flex-shrink-0 text-gray-400 hover:text-gray-600 p-1"
+              className="shrink-0 text-gray-400 hover:text-gray-600 p-1"
               title="复制日志"
             >
               <Copy size={14} />
@@ -325,22 +365,44 @@ export const LogsView: React.FC = () => {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="bg-white border rounded-lg p-4 max-h-[700px] overflow-y-auto">
-            {loading && logs.length === 0 ? (
-              <div className="text-center text-gray-400 py-8">加载中...</div>
-            ) : error ? (
-              <Alert variant="destructive">
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            ) : filteredLogs.length === 0 ? (
-              <div className="text-center text-gray-400 py-8">
-                {logs.length === 0 ? '暂无日志' : '未找到匹配的日志'}
-              </div>
-            ) : (
-              <>
-                {filteredLogs.map(renderLogLine)}
-                <div ref={logsEndRef} />
-              </>
+          <div className="relative">
+            <div
+              ref={logsContainerRef}
+              className="bg-white border rounded-lg p-4 overflow-y-auto"
+              style={{
+                height: 'calc(100vh - 290px)',
+                minHeight: '400px',
+                maxHeight: '800px'
+              }}
+            >
+              {loading && logs.length === 0 ? (
+                <div className="text-center text-gray-400 py-8">加载中...</div>
+              ) : error ? (
+                <Alert variant="destructive">
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              ) : filteredLogs.length === 0 ? (
+                <div className="text-center text-gray-400 py-8">
+                  {logs.length === 0 ? '暂无日志' : '未找到匹配的日志'}
+                </div>
+              ) : (
+                <>
+                  {filteredLogs.map(renderLogLine)}
+                  <div ref={logsEndRef} />
+                </>
+              )}
+            </div>
+
+            {/* 滚动到底部按钮 */}
+            {showScrollButton && (
+              <Button
+                size="sm"
+                className="absolute bottom-6 right-6 rounded-full shadow-lg hover:shadow-xl transition-all"
+                onClick={() => scrollToBottom('smooth')}
+                title="滚动到底部"
+              >
+                <ArrowDown className="h-4 w-4" />
+              </Button>
             )}
           </div>
         </CardContent>

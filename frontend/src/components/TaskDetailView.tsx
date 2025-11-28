@@ -179,7 +179,7 @@ export const TaskDetailView: React.FC<{
             返回
           </Button>
         )}
-        <div>
+        <div className='flex items-center gap-4'>
           <h2 className="text-2xl font-bold">任务详情</h2>
           <p className="text-sm text-muted-foreground font-mono">{task.taskId}</p>
         </div>

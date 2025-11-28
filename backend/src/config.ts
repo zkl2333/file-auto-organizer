@@ -211,5 +211,3 @@ export const config = {
   FILE_MAX_RETRIES: loadedConfig.file_operations.max_retries,
   FILE_RETRY_DELAY_BASE: loadedConfig.file_operations.retry_delay_base,
 } as const;
-
-export type AppConfig = typeof config;

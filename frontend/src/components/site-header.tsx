@@ -5,6 +5,7 @@ import type { ViewType } from "./app-sidebar"
 
 const viewTitles: Record<ViewType, string> = {
   stats: "统计信息",
+  "task-history": "任务历史",
   logs: "日志查看",
   trigger: "手动触发",
   config: "配置管理",

@@ -165,52 +165,60 @@ Run tests with `npm run test` from root or backend directory.
 
 ### Log Organization Strategy
 
-The logging system uses a **layered separation** strategy to avoid duplicate records:
+The logging system uses a **global + task dual-recording** strategy to ensure no log loss:
 
 #### 1. Global Logs (`logs/global/`)
 
-**Purpose**: Only records system-level and service-level general information, independent of specific tasks
+**Purpose**: Records all logs with daily rotation for easy global monitoring
 
-**Log Files**:
-- `system.log` - System startup, shutdown, scheduled task dispatching
-- `server.log` - HTTP API request and response records
+**Log Files** (按天轮转，格式: `module-YYYY-MM-DD.log`):
+- `system-*.log` - System startup, shutdown, scheduled task dispatching
+- `server-*.log` - HTTP API request and response records
+- `main-*.log` - All task main processes
+- `file-scan-*.log` - All file scanning operations (including non-task scenarios)
+- `file-info-*.log` - All file information parsing
+- `file-move-*.log` - All file move operations
+- `ai-*.log` - All AI classification calls
 
 **Characteristics**:
-- Continuously recorded throughout the service lifecycle
-- Does not include detailed task execution processes
-- Suitable for monitoring system operational status
+- **Daily rotation**: New log file created each day
+- **Retention**: Keeps last 30 days of logs
+- **Complete record**: All logs from all modules, including non-task operations
+- **Automatic cleanup**: Old logs deleted automatically
 
 #### 2. Task Logs (`logs/tasks/{taskId}/`)
 
 **Purpose**: Records detailed processes of specific task execution, each task has an independent directory
 
 **Log Files**:
-- `main.log` - Task main process control (task start, end, statistics)
-- `file-scan.log` - File scanning details (directory scanning, file discovery)
-- `file-info.log` - File information parsing (EXIF, metadata extraction)
-- `file-move.log` - File move operations (success, failure, retry)
-- `ai.log` - AI classification call details (API calls, Token consumption, classification results)
+- `main.log` - This task's main process control
+- `file-scan.log` - This task's file scanning details
+- `file-info.log` - This task's file information parsing
+- `file-move.log` - This task's file move operations
+- `ai.log` - This task's AI classification call details
 
 **Characteristics**:
 - Isolated by task ID for easy traceability of specific tasks
 - Only recorded during task execution
 - Contains complete task execution context
+- Includes taskId and dryRun flag in each log entry
 
 ### Log Output Rules
 
 | Log Module | Console | Global Log File | Task Log File | Description |
 |-----------|---------|----------------|---------------|-------------|
-| SYSTEM    | ✅ | ✅ | ❌ | System-level events |
-| SERVER    | ✅ | ✅ | ❌ | HTTP requests |
-| MAIN      | ✅ | ❌ | ✅ | Task main process |
-| FILE_SCAN | ✅ | ❌ | ✅ | File scanning |
-| FILE_INFO | ✅ | ❌ | ✅ | File parsing |
-| FILE_MOVE | ✅ | ❌ | ✅ | File moving |
-| AI        | ✅ | ❌ | ✅ | AI classification |
+| SYSTEM    | ✅ | ✅ | ✅ (if in task) | System-level events |
+| SERVER    | ✅ | ✅ | ✅ (if in task) | HTTP requests |
+| MAIN      | ✅ | ✅ | ✅ (if in task) | Task main process |
+| FILE_SCAN | ✅ | ✅ | ✅ (if in task) | File scanning |
+| FILE_INFO | ✅ | ✅ | ✅ (if in task) | File parsing |
+| FILE_MOVE | ✅ | ✅ | ✅ (if in task) | File moving |
+| AI        | ✅ | ✅ | ✅ (if in task) | AI classification |
 
-**Key Principle**: 
+**Key Principle**:
 - ✅ All logs output to console (for real-time monitoring)
-- ❌ Global logs and task logs are **mutually exclusive**, no duplicate recording
+- ✅ All logs output to global log files (for complete record keeping)
+- ✅ Logs additionally output to task log files when in task context (for task isolation)
 
 ### Usage Examples
 
@@ -305,5 +313,9 @@ cleanupLogFiles(): void
 - Cron expressions must be 5-field Unix format (validated in `index.ts`)
 - Files are processed in batches to avoid rate limits on AI API
 - Similarity threshold of 0.65 is default for filename matching
-- **Logging**: Global logs and task logs are mutually exclusive to avoid duplication
+- **Logging Strategy**: Global + task dual-recording ensures no log loss
+  - All logs written to global logs (with daily rotation, 30-day retention)
+  - Task logs additionally recorded when in task context for isolation
+  - Non-task operations (like API calls to get stats) are also logged globally
 - **Task Context**: Must call `setCurrentTaskId()` before task execution and clear it after completion
+- **Log Rotation**: Global logs rotate daily automatically, keeping last 30 days

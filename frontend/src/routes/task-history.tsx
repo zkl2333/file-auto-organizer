@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { TaskHistoryView } from '../components/TaskHistoryView';
 import { TaskDetailView } from '../components/TaskDetailView';
 

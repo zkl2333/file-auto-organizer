@@ -16,6 +16,10 @@ const {
 } = config;
 
 export class MainService {
+  // 静态锁，确保同一时间只有一个任务在运行
+  private static isRunning = false;
+  private static currentTaskId: string | null = null;
+
   private fileScanService: FileScanService;
   private fileMoveService: FileMoveService;
   private aiClassificationService: AIClassificationService;
@@ -27,6 +31,16 @@ export class MainService {
     this.fileMoveService = new FileMoveService();
     this.aiClassificationService = new AIClassificationService();
     this.fileInfoService = new FileInfoService();
+  }
+
+  /**
+   * 检查是否有任务正在运行
+   */
+  static getRunningStatus(): { isRunning: boolean; taskId: string | null } {
+    return {
+      isRunning: MainService.isRunning,
+      taskId: MainService.currentTaskId,
+    };
   }
 
   /**
@@ -107,12 +121,34 @@ export class MainService {
     status: 'success' | 'partial' | 'failed';
     errorMessage?: string;
   }> {
+    // 检查是否有任务正在运行
+    if (MainService.isRunning) {
+      const errorMsg = `任务正在执行中（任务ID: ${MainService.currentTaskId}），请稍候`;
+      mainLogger.warn({ currentTaskId: MainService.currentTaskId }, errorMsg);
+
+      return {
+        taskId: '',
+        similarityMatched: 0,
+        aiClassified: 0,
+        totalProcessed: 0,
+        duration: 0,
+        tokensUsed: 0,
+        fileTypes: {},
+        status: 'failed',
+        errorMessage: errorMsg,
+      };
+    }
+
     const taskId = this.generateTaskId();
     const startTime = Date.now();
-    
+
+    // 设置运行状态
+    MainService.isRunning = true;
+    MainService.currentTaskId = taskId;
+
     // 设置当前任务ID，启用任务级日志
     setCurrentTaskId(taskId);
-    
+
     mainLogger.info({ taskId, dryRun }, `开始分类任务...${dryRun ? "(dry-run)" : ""}`);
 
     let taskStatus: 'success' | 'partial' | 'failed' = 'success';
@@ -133,7 +169,12 @@ export class MainService {
 
     if (filesToProcess.length === 0) {
       mainLogger.info("没有需要分类的文件");
-      setCurrentTaskId(null); // 清除任务ID
+
+      // 清除任务状态
+      setCurrentTaskId(null);
+      MainService.isRunning = false;
+      MainService.currentTaskId = null;
+
       return {
         taskId,
         similarityMatched: 0,
@@ -338,9 +379,11 @@ export class MainService {
 
     // 确保所有日志都写入文件
     flushLogs();
-    
-    // 清除任务上下文
+
+    // 清除任务状态
     setCurrentTaskId(null);
+    MainService.isRunning = false;
+    MainService.currentTaskId = null;
 
     return {
       taskId,
@@ -357,8 +400,12 @@ export class MainService {
       // 捕获整个任务执行的错误
       mainLogger.error({ error, taskId }, "任务执行发生严重错误");
       flushLogs();
+
+      // 清除任务状态
       setCurrentTaskId(null);
-      
+      MainService.isRunning = false;
+      MainService.currentTaskId = null;
+
       return {
         taskId,
         similarityMatched: 0,

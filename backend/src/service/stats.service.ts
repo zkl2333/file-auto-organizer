@@ -116,11 +116,13 @@ export class StatsService {
 
   /**
    * 按时间范围获取统计数据
+   * @param range 时间范围
+   * @param includeDryRun 是否包含 dry-run 任务，默认不包含
    */
-  getStats(range: "today" | "week" | "month" | "all"): AggregatedStats {
+  getStats(range: "today" | "week" | "month" | "all", includeDryRun: boolean = false): AggregatedStats {
     const records = this.readRecords();
     const now = new Date();
-    
+
     // 计算时间范围起始点
     let startTime: Date | null = null;
     if (range === "today") {
@@ -131,10 +133,15 @@ export class StatsService {
       startTime = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     }
 
-    // 过滤记录
-    const filteredRecords = startTime
+    // 过滤记录（按时间范围和是否包含 dry-run）
+    let filteredRecords = startTime
       ? records.filter((r) => new Date(r.timestamp) >= startTime!)
       : records;
+
+    // 如果不包含 dry-run，过滤掉 dryRun 为 true 的记录
+    if (!includeDryRun) {
+      filteredRecords = filteredRecords.filter(r => !r.dryRun);
+    }
 
     // 聚合统计
     let totalAiCalls = 0;
