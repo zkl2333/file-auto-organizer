@@ -339,7 +339,7 @@ export class MainService {
     // 确保所有日志都写入文件
     flushLogs();
     
-    // 清除任务ID
+    // 清除任务上下文
     setCurrentTaskId(null);
 
     return {

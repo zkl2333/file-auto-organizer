@@ -7,7 +7,7 @@ import { config, CONFIG_BASE_DIR, findConfigFile, getConfigSnapshot } from "./co
 import { MainService } from "./service/main.service.js";
 import { FileScanService } from "./service/file-scan.service.js";
 import { StatsService } from "./service/stats.service.js";
-import { LoggerType, LOG_PATHS, getTaskLogPath } from "./logger.js";
+import { LogModule, GLOBAL_LOG_PATHS, getTaskLogPath } from "./logger.js";
 import { systemLogger as logger } from "./logger.js";
 
 const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3001;
@@ -77,8 +77,8 @@ const CONFIG_FILE_PATH = path.join(CONFIG_BASE_DIR, "config.yaml");
  * 直接使用 LOG_PATHS，与写日志保持一致
  */
 function getLogs(type: string, limit: number = 200): string[] {
-  const logType = type as LoggerType;
-  const logPath = LOG_PATHS[logType];
+  const logModule = type as LogModule;
+  const logPath = GLOBAL_LOG_PATHS[logModule];
 
   if (!logPath || !fs.existsSync(logPath)) {
     return [];
@@ -403,7 +403,7 @@ export async function startServer(mainService?: MainService) {
         }
         
         // 获取任务日志文件路径
-        const logPath = getTaskLogPath(type as LoggerType, taskId);
+        const logPath = getTaskLogPath(type as LogModule, taskId);
         
         if (!fs.existsSync(logPath)) {
           reply.send({ logs: [] });

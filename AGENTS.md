@@ -161,6 +161,143 @@ Backend uses Vitest framework. Test fixtures are in `backend/tests/fixtures/`.
 
 Run tests with `npm run test` from root or backend directory.
 
+## Logging System
+
+### Log Organization Strategy
+
+The logging system uses a **layered separation** strategy to avoid duplicate records:
+
+#### 1. Global Logs (`logs/global/`)
+
+**Purpose**: Only records system-level and service-level general information, independent of specific tasks
+
+**Log Files**:
+- `system.log` - System startup, shutdown, scheduled task dispatching
+- `server.log` - HTTP API request and response records
+
+**Characteristics**:
+- Continuously recorded throughout the service lifecycle
+- Does not include detailed task execution processes
+- Suitable for monitoring system operational status
+
+#### 2. Task Logs (`logs/tasks/{taskId}/`)
+
+**Purpose**: Records detailed processes of specific task execution, each task has an independent directory
+
+**Log Files**:
+- `main.log` - Task main process control (task start, end, statistics)
+- `file-scan.log` - File scanning details (directory scanning, file discovery)
+- `file-info.log` - File information parsing (EXIF, metadata extraction)
+- `file-move.log` - File move operations (success, failure, retry)
+- `ai.log` - AI classification call details (API calls, Token consumption, classification results)
+
+**Characteristics**:
+- Isolated by task ID for easy traceability of specific tasks
+- Only recorded during task execution
+- Contains complete task execution context
+
+### Log Output Rules
+
+| Log Module | Console | Global Log File | Task Log File | Description |
+|-----------|---------|----------------|---------------|-------------|
+| SYSTEM    | ✅ | ✅ | ❌ | System-level events |
+| SERVER    | ✅ | ✅ | ❌ | HTTP requests |
+| MAIN      | ✅ | ❌ | ✅ | Task main process |
+| FILE_SCAN | ✅ | ❌ | ✅ | File scanning |
+| FILE_INFO | ✅ | ❌ | ✅ | File parsing |
+| FILE_MOVE | ✅ | ❌ | ✅ | File moving |
+| AI        | ✅ | ❌ | ✅ | AI classification |
+
+**Key Principle**: 
+- ✅ All logs output to console (for real-time monitoring)
+- ❌ Global logs and task logs are **mutually exclusive**, no duplicate recording
+
+### Usage Examples
+
+**Global Logs (System Events)**:
+```typescript
+import { systemLogger } from './logger.js';
+systemLogger.info('Application started successfully');
+```
+
+**Global Logs (HTTP Requests)**:
+```typescript
+import { serverLogger } from './logger.js';
+serverLogger.info({ method: 'GET', path: '/api/stats' }, 'API request');
+```
+
+**Task Logs (Requires Context)**:
+```typescript
+import { mainLogger, setCurrentTaskId } from './logger.js';
+
+const taskId = 'task-2025-11-28-abc123';
+setCurrentTaskId(taskId, false); // Enable task logging
+
+mainLogger.info('Classification task started'); // Logs to logs/tasks/{taskId}/main.log
+
+setCurrentTaskId(null); // Disable task logging
+flushLogs(); // Ensure logs are written
+```
+
+### Log Level Guidelines
+
+| Level | Purpose | Examples |
+|-------|---------|----------|
+| **fatal** | Fatal errors, service cannot continue | Database connection failure, critical config missing |
+| **error** | Errors, but service can continue | Single file processing failure, API call failure |
+| **warn** | Warnings, needs attention but doesn't affect functionality | Missing config uses default, retry operations |
+| **info** | Key information points | Task start/end, file moved successfully |
+| **debug** | Debug information | Detailed process, intermediate states |
+| **trace** | Trace information | Most detailed execution details |
+
+### Log Management
+
+**Viewing Global Logs**:
+```bash
+# System startup and scheduling logs
+tail -f logs/global/system.log
+
+# HTTP API request logs
+tail -f logs/global/server.log
+```
+
+**Viewing Task Logs**:
+```bash
+# List all tasks
+ls logs/tasks/
+
+# View specific task main process
+tail -f logs/tasks/task-2025-11-28T14-00-00-abc123/main.log
+
+# View specific task AI calls
+tail -f logs/tasks/task-2025-11-28T14-00-00-abc123/ai.log
+```
+
+**Log Cleanup**:
+```bash
+# Delete task logs older than 30 days
+find logs/tasks -type d -mtime +30 -exec rm -rf {} \;
+```
+
+### Key Functions
+
+```typescript
+// Set task context (enable task logging)
+setCurrentTaskId(taskId: string, dryRun: boolean): void
+
+// Clear task context (disable task logging)
+setCurrentTaskId(null): void
+
+// Get logger for specific module
+getLogger(module: LogModule): pino.Logger
+
+// Flush all logs to disk
+flushLogs(): void
+
+// Clean up log resources
+cleanupLogFiles(): void
+```
+
 ## Important Notes
 
 - Both backend and frontend use **npm** as package manager
@@ -168,3 +305,5 @@ Run tests with `npm run test` from root or backend directory.
 - Cron expressions must be 5-field Unix format (validated in `index.ts`)
 - Files are processed in batches to avoid rate limits on AI API
 - Similarity threshold of 0.65 is default for filename matching
+- **Logging**: Global logs and task logs are mutually exclusive to avoid duplication
+- **Task Context**: Must call `setCurrentTaskId()` before task execution and clear it after completion

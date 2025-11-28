@@ -3,54 +3,134 @@ import fs from "node:fs";
 import path from "node:path";
 import { config } from "./config.js";
 
-// 当前任务ID（用于按任务组织日志）
-let currentTaskId: string | null = null;
+/**
+ * 日志系统重构说明:
+ * 
+ * 1. 日志分组策略:
+ *    - 全局日志 (logs/global/): 仅记录系统级和服务级通用信息
+ *      · system.log - 系统启动、停止、定时任务调度
+ *      · server.log - HTTP API请求响应
+ *    
+ *    - 任务日志 (logs/tasks/{taskId}/): 记录具体任务执行的详细过程
+ *      · main.log - 任务主流程控制
+ *      · file-scan.log - 文件扫描详情
+ *      · file-info.log - 文件信息解析
+ *      · file-move.log - 文件移动操作
+ *      · ai.log - AI分类调用详情
+ * 
+ * 2. 日志输出规则:
+ *    - 全局日志: 仅输出到 global 目录
+ *    - 任务日志: 仅输出到对应任务目录
+ *    - 控制台: 所有日志都输出到控制台
+ * 
+ * 3. 日志级别规范:
+ *    - fatal: 致命错误,服务无法继续运行
+ *    - error: 错误,但服务可以继续
+ *    - warn: 警告,需要关注但不影响功能
+ *    - info: 关键信息点(任务开始/结束、重要操作等)
+ *    - debug: 调试信息(详细流程、中间状态)
+ *    - trace: 追踪信息(最详细的执行细节)
+ */
 
-// 日志类型枚举
-export enum LoggerType {
-  SYSTEM = "system",      // 系统日志 (index.ts)
-  MAIN = "main",          // 主服务日志 (main.service.ts)
-  AI = "ai",              // AI分类日志 (ai-classification.service.ts)
-  FILE_MOVE = "file-move", // 文件移动日志 (file-move.service.ts)
-  FILE_SCAN = "file-scan", // 文件扫描日志 (file-scan.service.ts)
-  FILE_INFO = "file-info", // 文件解析日志 (file-info.service.ts)
+// 当前任务上下文
+interface TaskContext {
+  taskId: string;
+  startTime: Date;
+  dryRun: boolean;
 }
 
-// 日志文件路径配置 - 支持任务级日志
-export const LOG_PATHS = {
-  [LoggerType.SYSTEM]: path.join(config.LOG_DIR, "system.log"),
-  [LoggerType.MAIN]: path.join(config.LOG_DIR, "main.log"),
-  [LoggerType.AI]: path.join(config.LOG_DIR, "ai.log"),
-  [LoggerType.FILE_MOVE]: path.join(config.LOG_DIR, "file-move.log"),
-  [LoggerType.FILE_SCAN]: path.join(config.LOG_DIR, "file-scan.log"),
-  [LoggerType.FILE_INFO]: path.join(config.LOG_DIR, "file-info.log"),
+let currentTaskContext: TaskContext | null = null;
+
+// 日志模块枚举
+export enum LogModule {
+  SYSTEM = "system",        // 系统日志(仅全局)
+  SERVER = "server",        // 服务器日志(仅全局)
+  MAIN = "main",            // 主服务日志(仅任务)
+  FILE_SCAN = "file-scan",  // 文件扫描日志(仅任务)
+  FILE_INFO = "file-info",  // 文件信息日志(仅任务)
+  FILE_MOVE = "file-move",  // 文件移动日志(仅任务)
+  AI = "ai",                // AI分类日志(仅任务)
+}
+
+// 仅全局日志的模块
+const GLOBAL_ONLY_MODULES = new Set([LogModule.SYSTEM, LogModule.SERVER]);
+
+// 仅任务日志的模块
+const TASK_ONLY_MODULES = new Set([
+  LogModule.MAIN,
+  LogModule.FILE_SCAN,
+  LogModule.FILE_INFO,
+  LogModule.FILE_MOVE,
+  LogModule.AI,
+]);
+
+// 保持向后兼容
+export const LoggerType = LogModule;
+
+// 全局日志路径配置
+export const GLOBAL_LOG_PATHS = {
+  [LogModule.SYSTEM]: path.join(config.LOG_DIR, "global", "system.log"),
+  [LogModule.SERVER]: path.join(config.LOG_DIR, "global", "server.log"),
+  [LogModule.MAIN]: path.join(config.LOG_DIR, "global", "main.log"),
+  [LogModule.FILE_SCAN]: path.join(config.LOG_DIR, "global", "file-scan.log"),
+  [LogModule.FILE_INFO]: path.join(config.LOG_DIR, "global", "file-info.log"),
+  [LogModule.FILE_MOVE]: path.join(config.LOG_DIR, "global", "file-move.log"),
+  [LogModule.AI]: path.join(config.LOG_DIR, "global", "ai.log"),
 };
+
+// 向后兼容
+export const LOG_PATHS = GLOBAL_LOG_PATHS;
 
 /**
  * 获取任务级日志路径
  */
-export function getTaskLogPath(type: LoggerType, taskId: string): string {
-  return path.join(config.LOG_DIR, "tasks", taskId, `${type}.log`);
+export function getTaskLogPath(module: LogModule, taskId: string): string {
+  return path.join(config.LOG_DIR, "tasks", taskId, `${module}.log`);
 }
 
-// 存储所有日志器实例和文件句柄
-const loggerInstances = new Map<LoggerType, pino.Logger>();
-const fileDestinations = new Map<LoggerType, ReturnType<typeof pino.destination>>();
-const taskFileDestinations = new Map<string, Map<LoggerType, ReturnType<typeof pino.destination>>>();
+/**
+ * 获取任务日志目录
+ */
+export function getTaskLogDir(taskId: string): string {
+  return path.join(config.LOG_DIR, "tasks", taskId);
+}
+
+// 日志器实例管理
+interface LoggerInstance {
+  logger: pino.Logger;
+  globalDest: ReturnType<typeof pino.destination>;
+}
+
+const loggerInstances = new Map<LogModule, LoggerInstance>();
+const taskDestinations = new Map<string, Map<LogModule, ReturnType<typeof pino.destination>>>();
 
 // 控制台日志目标（所有日志器共享）
-const consoleDestination = pino.destination({ sync: true, fd: 1 });
+const consoleDestination = pino.destination({ sync: false, fd: 1 });
 
 /**
- * 设置当前任务ID
+ * 设置当前任务上下文
  */
-export function setCurrentTaskId(taskId: string | null): void {
-  currentTaskId = taskId;
+export function setCurrentTaskId(taskId: string | null, dryRun: boolean = false): void {
   if (taskId) {
-    // 为新任务创建日志文件
-    const taskLogDir = path.join(config.LOG_DIR, "tasks", taskId);
+    currentTaskContext = {
+      taskId,
+      startTime: new Date(),
+      dryRun,
+    };
+    
+    // 创建任务日志目录
+    const taskLogDir = getTaskLogDir(taskId);
     if (!fs.existsSync(taskLogDir)) {
       fs.mkdirSync(taskLogDir, { recursive: true });
+    }
+    
+    // 初始化任务日志流
+    initTaskLogStreams(taskId);
+  } else {
+    // 清理任务上下文
+    if (currentTaskContext) {
+      cleanupTaskLogStreams(currentTaskContext.taskId);
+      currentTaskContext = null;
     }
   }
 }
@@ -59,14 +139,54 @@ export function setCurrentTaskId(taskId: string | null): void {
  * 获取当前任务ID
  */
 export function getCurrentTaskId(): string | null {
-  return currentTaskId;
+  return currentTaskContext?.taskId || null;
 }
 
 /**
- * 创建指定类型的日志器
+ * 获取当前任务上下文
  */
-function createLogger(type: LoggerType): pino.Logger {
-  const logPath = LOG_PATHS[type];
+export function getCurrentTaskContext(): TaskContext | null {
+  return currentTaskContext;
+}
+
+/**
+ * 初始化任务日志流
+ */
+function initTaskLogStreams(taskId: string): void {
+  if (!taskDestinations.has(taskId)) {
+    taskDestinations.set(taskId, new Map());
+  }
+}
+
+/**
+ * 清理任务日志流
+ */
+function cleanupTaskLogStreams(taskId: string): void {
+  const taskDests = taskDestinations.get(taskId);
+  if (taskDests) {
+    taskDests.forEach((dest) => {
+      try {
+        dest.flushSync();
+        // 注意: pino.destination 不提供 close 方法,flush后由GC处理
+      } catch (err) {
+        // 忽略清理错误
+      }
+    });
+    taskDestinations.delete(taskId);
+  }
+}
+
+/**
+ * 创建全局日志器(单例模式)
+ * 只为 GLOBAL_ONLY_MODULES 创建
+ */
+function createGlobalLogger(module: LogModule): pino.Logger {
+  // 如果已存在,直接返回
+  if (loggerInstances.has(module)) {
+    return loggerInstances.get(module)!.logger;
+  }
+
+  const logPath = GLOBAL_LOG_PATHS[module];
   const logDir = path.dirname(logPath);
   
   // 确保日志目录存在
@@ -74,45 +194,70 @@ function createLogger(type: LoggerType): pino.Logger {
     fs.mkdirSync(logDir, { recursive: true });
   }
 
-  // 创建文件日志目标
-  const fileDestination = pino.destination({
-    minLength: 512, // 减小缓冲区，更快写入文件
+  // 创建全局日志文件目标
+  const globalDest = pino.destination({
+    dest: logPath,
+    minLength: 4096, // 4KB缓冲
     sync: false,
-    fd: fs.openSync(logPath, "a"),
   });
 
-  // 存储文件目标以便后续清理
-  fileDestinations.set(type, fileDestination);
-
-  // 创建多流日志器（同时输出到控制台和对应的文件）
+  // 创建日志器(仅输出到控制台和全局日志文件)
   const logger = pino(
     {
       level: config.LOG_LEVEL,
-      base: { module: type }, // 添加模块标识
+      base: { module },
       timestamp: pino.stdTimeFunctions.isoTime,
     },
     pino.multistream([
-      { stream: consoleDestination },
-      { stream: fileDestination },
-      // 如果有任务ID，也写入任务专属日志
-      ...(currentTaskId ? [{ stream: getOrCreateTaskDestination(type, currentTaskId) }] : [])
+      { stream: consoleDestination, level: config.LOG_LEVEL },
+      { stream: globalDest, level: config.LOG_LEVEL },
     ])
   );
 
+  // 缓存日志器实例
+  loggerInstances.set(module, { logger, globalDest });
+  
+  return logger;
+}
+
+/**
+ * 创建任务日志器
+ * 只为 TASK_ONLY_MODULES 创建,仅在有任务上下文时输出到文件
+ */
+function createTaskLogger(module: LogModule): pino.Logger {
+  // 如果已存在,直接返回
+  if (loggerInstances.has(module)) {
+    return loggerInstances.get(module)!.logger;
+  }
+
+  // 任务日志器基础配置(仅输出到控制台,任务日志通过 child logger 动态添加)
+  const logger = pino(
+    {
+      level: config.LOG_LEVEL,
+      base: { module },
+      timestamp: pino.stdTimeFunctions.isoTime,
+    },
+    consoleDestination
+  );
+
+  // 缓存日志器实例(不需要 globalDest)
+  loggerInstances.set(module, { logger, globalDest: null as any });
+  
   return logger;
 }
 
 /**
  * 获取或创建任务级日志目标
  */
-function getOrCreateTaskDestination(type: LoggerType, taskId: string): ReturnType<typeof pino.destination> {
-  if (!taskFileDestinations.has(taskId)) {
-    taskFileDestinations.set(taskId, new Map());
+function getOrCreateTaskDestination(module: LogModule, taskId: string): ReturnType<typeof pino.destination> {
+  let taskDests = taskDestinations.get(taskId);
+  if (!taskDests) {
+    taskDests = new Map();
+    taskDestinations.set(taskId, taskDests);
   }
   
-  const taskDests = taskFileDestinations.get(taskId)!;
-  if (!taskDests.has(type)) {
-    const taskLogPath = getTaskLogPath(type, taskId);
+  if (!taskDests.has(module)) {
+    const taskLogPath = getTaskLogPath(module, taskId);
     const taskLogDir = path.dirname(taskLogPath);
     
     if (!fs.existsSync(taskLogDir)) {
@@ -120,72 +265,148 @@ function getOrCreateTaskDestination(type: LoggerType, taskId: string): ReturnTyp
     }
     
     const dest = pino.destination({
-      minLength: 512,
+      dest: taskLogPath,
+      minLength: 4096,
       sync: false,
-      fd: fs.openSync(taskLogPath, "a"),
     });
     
-    taskDests.set(type, dest);
+    taskDests.set(module, dest);
   }
   
-  return taskDests.get(type)!;
+  return taskDests.get(module)!;
 }
 
 /**
- * 获取指定类型的日志器（单例模式）
- * 注意：当任务ID变化时，需要重新创建日志器以包含新的任务日志流
+ * 创建带任务上下文的日志器包装
+ * 仅对 TASK_ONLY_MODULES 有效
  */
-export function getLogger(type: LoggerType): pino.Logger {
-  // 每次都重新创建，以便包含最新的任务日志流
-  const logger = createLogger(type);
-  loggerInstances.set(type, logger);
-  return logger;
+function wrapLoggerWithTaskContext(baseLogger: pino.Logger, module: LogModule): pino.Logger {
+  // 如果是全局日志模块,直接返回原始日志器
+  if (GLOBAL_ONLY_MODULES.has(module)) {
+    return baseLogger;
+  }
+
+  // 对任务日志模块,创建代理
+  return new Proxy(baseLogger, {
+    get(target, prop) {
+      const original = target[prop as keyof pino.Logger];
+      
+      // 拦截日志方法
+      if (typeof original === 'function' && ['trace', 'debug', 'info', 'warn', 'error', 'fatal'].includes(prop as string)) {
+        return function(...args: any[]) {
+          // 如果有任务上下文,写入任务日志文件
+          if (currentTaskContext) {
+            const taskDest = getOrCreateTaskDestination(module, currentTaskContext.taskId);
+            const level = prop as string;
+            const [objOrMsg, msg] = args;
+            const logObj = typeof objOrMsg === 'object' ? objOrMsg : {};
+            const logMsg = typeof objOrMsg === 'string' ? objOrMsg : msg;
+            
+            const entry = {
+              level: pino.levels.values[level as keyof typeof pino.levels.values],
+              time: Date.now(),
+              module,
+              taskId: currentTaskContext.taskId,
+              dryRun: currentTaskContext.dryRun,
+              ...logObj,
+              msg: logMsg,
+            };
+            
+            taskDest.write(JSON.stringify(entry) + '\n');
+          }
+          
+          // 同时输出到控制台
+          return (original as any).apply(target, args);
+        };
+      }
+      
+      return original;
+    },
+  }) as pino.Logger;
 }
 
-// 导出各种专用日志器
-export const systemLogger = getLogger(LoggerType.SYSTEM);
-export const mainLogger = getLogger(LoggerType.MAIN);
-export const aiLogger = getLogger(LoggerType.AI);
-export const fileMoveLogger = getLogger(LoggerType.FILE_MOVE);
-export const fileScanLogger = getLogger(LoggerType.FILE_SCAN);
-export const fileInfoLogger = getLogger(LoggerType.FILE_INFO);
+/**
+ * 获取指定模块的日志器(单例模式)
+ */
+export function getLogger(module: LogModule): pino.Logger {
+  let baseLogger: pino.Logger;
+  
+  if (GLOBAL_ONLY_MODULES.has(module)) {
+    // 全局日志模块
+    baseLogger = createGlobalLogger(module);
+  } else {
+    // 任务日志模块
+    baseLogger = createTaskLogger(module);
+  }
+  
+  return wrapLoggerWithTaskContext(baseLogger, module);
+}
 
-// 保持向后兼容性，默认使用系统日志器
+// 导出各模块专用日志器
+export const systemLogger = getLogger(LogModule.SYSTEM);
+export const serverLogger = getLogger(LogModule.SERVER);
+export const mainLogger = getLogger(LogModule.MAIN);
+export const fileScanLogger = getLogger(LogModule.FILE_SCAN);
+export const fileInfoLogger = getLogger(LogModule.FILE_INFO);
+export const fileMoveLogger = getLogger(LogModule.FILE_MOVE);
+export const aiLogger = getLogger(LogModule.AI);
+
+// 保持向后兼容性
 export const logger = systemLogger;
 
-// 导出清理函数供进程管理器调用
-export function cleanupLogFiles() {
-  fileDestinations.forEach((destination) => {
-    destination.flushSync();
-  });
-  // 清理任务日志
-  taskFileDestinations.forEach((taskDests) => {
-    taskDests.forEach((dest) => {
-      dest.flushSync();
-    });
-  });
-}
-
-// 导出手动刷新函数（用于确保关键时刻日志写入）
-export function flushLogs() {
-  fileDestinations.forEach((destination) => {
-    destination.flushSync();
-  });
-  // 刷新任务日志
-  taskFileDestinations.forEach((taskDests) => {
-    taskDests.forEach((dest) => {
-      dest.flushSync();
-    });
-  });
-}
-
-// 每10秒自动刷新一次日志到文件（确保及时写入）
-setInterval(() => {
-  fileDestinations.forEach((destination) => {
+/**
+ * 刷新所有日志流
+ */
+export function flushLogs(): void {
+  // 刷新全局日志
+  loggerInstances.forEach(({ globalDest }) => {
     try {
-      destination.flushSync();
+      globalDest.flushSync();
     } catch (err) {
-      // 忽略flush错误，避免影响主流程
+      // 忽略刷新错误
+    }
+  });
+  
+  // 刷新任务日志
+  taskDestinations.forEach((taskDests) => {
+    taskDests.forEach((dest) => {
+      try {
+        dest.flushSync();
+      } catch (err) {
+        // 忽略刷新错误
+      }
+    });
+  });
+  
+  // 刷新控制台
+  try {
+    consoleDestination.flushSync();
+  } catch (err) {
+    // 忽略刷新错误
+  }
+}
+
+/**
+ * 清理所有日志资源
+ */
+export function cleanupLogFiles(): void {
+  // 先刷新
+  flushLogs();
+  
+  // 清理所有任务日志流
+  taskDestinations.forEach((taskDests, taskId) => {
+    cleanupTaskLogStreams(taskId);
+  });
+  taskDestinations.clear();
+}
+
+// 定期刷新日志(每10秒)
+setInterval(() => {
+  loggerInstances.forEach(({ globalDest }) => {
+    try {
+      globalDest.flush();
+    } catch (err) {
+      // 忽略刷新错误
     }
   });
 }, 10000);
