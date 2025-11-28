@@ -402,6 +402,84 @@ export async function startServer(mainService?: MainService) {
     }
   });
 
+  // GET /api/files - 文件浏览
+  server.get<{
+    Querystring: { path?: string; base?: string };
+  }>(
+    "/api/files",
+    async (request: FastifyRequest<{ Querystring: { path?: string; base?: string } }>, reply: FastifyReply) => {
+      try {
+        const baseDir = request.query.base === "incoming" ? config.INCOMING_DIR : config.ROOT_DIR;
+        const targetPath = request.query.path || "";
+        
+        // 安全检查：防止路径遍历攻击
+        const safePath = path.normalize(targetPath).replace(/^(\.\.(\/|\\|$))+/, "");
+        const fullPath = path.join(baseDir, safePath);
+        
+        // 确保路径在 baseDir 内
+        if (!fullPath.startsWith(path.resolve(baseDir))) {
+          reply.status(403).send({
+            error: "Forbidden",
+            message: "访问路径超出允许范围",
+          });
+          return;
+        }
+
+        if (!fs.existsSync(fullPath)) {
+          reply.status(404).send({
+            error: "Not Found",
+            message: "路径不存在",
+          });
+          return;
+        }
+
+        const stat = fs.statSync(fullPath);
+        if (stat.isFile()) {
+          reply.send({
+            type: "file",
+            name: path.basename(fullPath),
+            path: targetPath,
+            size: stat.size,
+            modified: stat.mtime.toISOString(),
+          });
+        } else {
+          const entries = fs.readdirSync(fullPath);
+          const items = entries.map((entry) => {
+            const entryPath = path.join(fullPath, entry);
+            const entryStat = fs.statSync(entryPath);
+            const relPath = path.join(targetPath, entry).replace(/\\/g, "/");
+            
+            return {
+              name: entry,
+              path: relPath,
+              type: entryStat.isDirectory() ? "directory" : "file",
+              size: entryStat.isFile() ? entryStat.size : null,
+              modified: entryStat.mtime.toISOString(),
+            };
+          });
+
+          reply.send({
+            type: "directory",
+            path: targetPath,
+            items: items.sort((a, b) => {
+              // 目录在前，然后按名称排序
+              if (a.type !== b.type) {
+                return a.type === "directory" ? -1 : 1;
+              }
+              return a.name.localeCompare(b.name);
+            }),
+          });
+        }
+      } catch (error) {
+        logger.error({ error }, "浏览文件失败");
+        reply.status(500).send({
+          error: "Internal Server Error",
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+  );
+
   // 启动服务器
   try {
     await server.listen({ port: PORT, host: "0.0.0.0" });

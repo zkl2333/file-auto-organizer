@@ -1,4 +1,5 @@
 import * as React from "react"
+import { Link } from "react-router-dom"
 import {
   IconChartBar,
   IconFileText,
@@ -19,12 +20,9 @@ import {
 
 export type ViewType = 'stats' | 'logs' | 'trigger' | 'config'
 
-interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
-  activeView: ViewType
-  onViewChange: (view: ViewType) => void
-}
+interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {}
 
-export function AppSidebar({ activeView, onViewChange, ...props }: AppSidebarProps) {
+export function AppSidebar({ ...props }: AppSidebarProps) {
   const navItems = [
     {
       id: 'stats' as ViewType,
@@ -57,16 +55,16 @@ export function AppSidebar({ activeView, onViewChange, ...props }: AppSidebarPro
               asChild
               className="data-[slot=sidebar-menu-button]:p-1.5!"
             >
-              <a href="#">
+              <Link to="/">
                 <IconFolder className="size-5!" />
                 <span className="text-base font-semibold">文件自动整理</span>
-              </a>
+              </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
-        <NavMain items={navItems} activeView={activeView} onViewChange={onViewChange} />
+        <NavMain items={navItems} />
       </SidebarContent>
     </Sidebar>
   )
