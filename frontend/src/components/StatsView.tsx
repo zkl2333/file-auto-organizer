@@ -1,38 +1,39 @@
-import React, { useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useUsageStats } from '../hooks/useApi';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import React, { useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { useUsageStats } from "../hooks/useApi";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
+} from "@/components/ui/select";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
-  ToggleGroup,
-  ToggleGroupItem,
-} from '@/components/ui/toggle-group';
-import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip, AreaChart, Area, XAxis, YAxis, CartesianGrid } from 'recharts';
-import { useIsMobile } from '../hooks/use-mobile';
-import {
-  Brain,
-  Zap,
-  FileStack,
-  FolderTree,
-  Activity,
-  Clock,
-  TrendingUp,
-} from 'lucide-react';
+  PieChart,
+  Pie,
+  Cell,
+  ResponsiveContainer,
+  Legend,
+  Tooltip,
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+} from "recharts";
+import { useIsMobile } from "../hooks/use-mobile";
+import { Brain, Zap, FileStack, FolderTree, Activity, Clock, TrendingUp } from "lucide-react";
 
-type TimeRange = 'today' | 'week' | 'month' | 'all';
+type TimeRange = "today" | "week" | "month" | "all";
 
 interface StatsViewProps {
   timeRange: TimeRange;
 }
 
-export const StatsView: React.FC<StatsViewProps> = ({ timeRange = 'week' }) => {
+export const StatsView: React.FC<StatsViewProps> = ({ timeRange = "week" }) => {
   const isMobile = useIsMobile();
   const navigate = useNavigate();
 
@@ -41,8 +42,8 @@ export const StatsView: React.FC<StatsViewProps> = ({ timeRange = 'week' }) => {
 
   // 移动端自动切换到今日视图
   useEffect(() => {
-    if (isMobile && timeRange === 'month') {
-      navigate('/stats/today', { replace: true });
+    if (isMobile && timeRange === "month") {
+      navigate("/stats/today", { replace: true });
     }
   }, [isMobile, timeRange, navigate]);
 
@@ -51,7 +52,7 @@ export const StatsView: React.FC<StatsViewProps> = ({ timeRange = 'week' }) => {
   };
 
   const formatNumber = (num: number) => {
-    return num.toLocaleString('zh-CN');
+    return num.toLocaleString("zh-CN");
   };
 
   if (loading) {
@@ -64,7 +65,7 @@ export const StatsView: React.FC<StatsViewProps> = ({ timeRange = 'week' }) => {
     );
   }
   if (error) {
-    const errorMessage = error instanceof Error ? error.message : '加载统计信息失败';
+    const errorMessage = error instanceof Error ? error.message : "加载统计信息失败";
     return (
       <Alert variant="destructive">
         <AlertDescription>加载失败: {errorMessage}</AlertDescription>
@@ -83,18 +84,24 @@ export const StatsView: React.FC<StatsViewProps> = ({ timeRange = 'week' }) => {
 
   // 优化的颜色配置 - 使用现代渐变色系
   const COLORS = [
-    'hsl(var(--chart-1))',
-    'hsl(var(--chart-2))',
-    'hsl(var(--chart-3))',
-    'hsl(var(--chart-4))',
-    'hsl(var(--chart-5))',
-    '#8b5cf6',
-    '#ec4899',
-    '#f97316'
+    "oklch(0.6 0.118 184.704)",
+    "oklch(0.398 0.07 227.392)",
+    "oklch(0.828 0.189 84.429)",
+    "oklch(0.769 0.188 70.08)",
+    "oklch(0.646 0.222 41.116)",
+    "oklch(0.6 0.118 184.704)",
+    "oklch(0.398 0.07 227.392)",
+    "oklch(0.828 0.189 84.429)",
+    "oklch(0.769 0.188 70.08)",
+    "oklch(0.646 0.222 41.116)",
+    "oklch(0.6 0.118 184.704)",
+    "oklch(0.398 0.07 227.392)",
+    "oklch(0.828 0.189 84.429)",
+    "oklch(0.769 0.188 70.08)",
   ];
 
   // 准备每日趋势数据
-  const dailyTrendData = usageStats.dailyTrends.map(trend => ({
+  const dailyTrendData = usageStats.dailyTrends.map((trend) => ({
     date: trend.date,
     files: trend.filesProcessed,
     tokens: Math.round(trend.tokensUsed / 1000), // 转换为K
@@ -106,9 +113,7 @@ export const StatsView: React.FC<StatsViewProps> = ({ timeRange = 'week' }) => {
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
           <h2 className="text-2xl font-bold tracking-tight">数据统计</h2>
-          <p className="text-sm text-muted-foreground mt-1">
-            实时追踪文件整理和 AI 使用情况
-          </p>
+          <p className="text-sm text-muted-foreground mt-1">实时追踪文件整理和 AI 使用情况</p>
         </div>
         <div className="flex items-center gap-2">
           <ToggleGroup
@@ -133,18 +138,22 @@ export const StatsView: React.FC<StatsViewProps> = ({ timeRange = 'week' }) => {
             <ToggleGroupItem value="all">全部</ToggleGroupItem>
           </ToggleGroup>
           <Select value={timeRange} onValueChange={handleTimeRangeChange}>
-            <SelectTrigger
-              className="w-32 sm:hidden"
-              size="sm"
-              aria-label="选择时间范围"
-            >
+            <SelectTrigger className="w-32 sm:hidden" size="sm" aria-label="选择时间范围">
               <SelectValue placeholder="时间范围" />
             </SelectTrigger>
             <SelectContent className="rounded-xl">
-              <SelectItem value="today" className="rounded-lg">今日</SelectItem>
-              <SelectItem value="week" className="rounded-lg">7天</SelectItem>
-              <SelectItem value="month" className="rounded-lg">30天</SelectItem>
-              <SelectItem value="all" className="rounded-lg">全部</SelectItem>
+              <SelectItem value="today" className="rounded-lg">
+                今日
+              </SelectItem>
+              <SelectItem value="week" className="rounded-lg">
+                7天
+              </SelectItem>
+              <SelectItem value="month" className="rounded-lg">
+                30天
+              </SelectItem>
+              <SelectItem value="all" className="rounded-lg">
+                全部
+              </SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -257,14 +266,14 @@ export const StatsView: React.FC<StatsViewProps> = ({ timeRange = 'week' }) => {
                   </Pie>
                   <Tooltip
                     contentStyle={{
-                      borderRadius: '8px',
-                      border: 'none',
-                      boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                      borderRadius: "8px",
+                      border: "none",
+                      boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
                     }}
-                    formatter={(value: number) => [`${value} 个文件`, '数量']}
+                    formatter={(value: number) => [`${value} 个文件`, "数量"]}
                   />
                   <Legend
-                    wrapperStyle={{ fontSize: '12px', paddingTop: '12px' }}
+                    wrapperStyle={{ fontSize: "12px", paddingTop: "12px" }}
                     iconType="circle"
                   />
                 </PieChart>
@@ -288,7 +297,9 @@ export const StatsView: React.FC<StatsViewProps> = ({ timeRange = 'week' }) => {
               <div>
                 <CardTitle className="text-lg">每日整理趋势</CardTitle>
                 <CardDescription className="text-xs mt-0.5">
-                  <span className="hidden @[540px]/chart:inline">文件处理数量和 Token 消耗趋势</span>
+                  <span className="hidden @[540px]/chart:inline">
+                    文件处理数量和 Token 消耗趋势
+                  </span>
                   <span className="@[540px]/chart:hidden">文件与 Token 趋势</span>
                 </CardDescription>
               </div>
@@ -308,7 +319,12 @@ export const StatsView: React.FC<StatsViewProps> = ({ timeRange = 'week' }) => {
                       <stop offset="95%" stopColor="hsl(var(--chart-2))" stopOpacity={0.05} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" opacity={0.3} />
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    vertical={false}
+                    stroke="hsl(var(--border))"
+                    opacity={0.3}
+                  />
                   <XAxis
                     dataKey="date"
                     tickLine={false}
@@ -318,44 +334,43 @@ export const StatsView: React.FC<StatsViewProps> = ({ timeRange = 'week' }) => {
                     tick={{ fontSize: 11 }}
                     tickFormatter={(value) => {
                       const date = new Date(value);
-                      return date.toLocaleDateString('zh-CN', {
-                        month: 'short',
-                        day: 'numeric',
+                      return date.toLocaleDateString("zh-CN", {
+                        month: "short",
+                        day: "numeric",
                       });
                     }}
                   />
-                  <YAxis
-                    tickLine={false}
-                    axisLine={false}
-                    tick={{ fontSize: 11 }}
-                    tickMargin={8}
-                  />
+                  <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 11 }} tickMargin={8} />
                   <Tooltip
-                    cursor={{ stroke: 'hsl(var(--border))', strokeWidth: 1, strokeDasharray: '5 5' }}
+                    cursor={{
+                      stroke: "hsl(var(--border))",
+                      strokeWidth: 1,
+                      strokeDasharray: "5 5",
+                    }}
                     contentStyle={{
-                      borderRadius: '8px',
-                      border: 'none',
-                      boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                      borderRadius: "8px",
+                      border: "none",
+                      boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
                     }}
                     labelFormatter={(value) => {
-                      return new Date(value).toLocaleDateString('zh-CN', {
-                        year: 'numeric',
-                        month: 'short',
-                        day: 'numeric',
+                      return new Date(value).toLocaleDateString("zh-CN", {
+                        year: "numeric",
+                        month: "short",
+                        day: "numeric",
                       });
                     }}
                     formatter={(value, name) => {
-                      if (name === 'files') return [value, '文件数'];
-                      if (name === 'tokens') return [`${value}K`, 'Token'];
+                      if (name === "files") return [value, "文件数"];
+                      if (name === "tokens") return [`${value}K`, "Token"];
                       return [value, name];
                     }}
                   />
                   <Legend
-                    wrapperStyle={{ fontSize: '12px', paddingTop: '12px' }}
+                    wrapperStyle={{ fontSize: "12px", paddingTop: "12px" }}
                     iconType="circle"
                     formatter={(value) => {
-                      if (value === 'files') return '文件数';
-                      if (value === 'tokens') return 'Token (K)';
+                      if (value === "files") return "文件数";
+                      if (value === "tokens") return "Token (K)";
                       return value;
                     }}
                   />
