@@ -17,7 +17,8 @@ import {
   RefreshCw
 } from 'lucide-react';
 
-const formatDuration = (ms: number): string => {
+const formatDuration = (ms: number | undefined): string => {
+  if (ms == null || isNaN(ms)) return '-';
   if (ms < 1000) return `${ms}ms`;
   const seconds = Math.floor(ms / 1000);
   if (seconds < 60) return `${seconds}秒`;
@@ -26,9 +27,11 @@ const formatDuration = (ms: number): string => {
   return `${minutes}分${remainingSeconds}秒`;
 };
 
-const formatTime = (isoTime: string): string => {
+const formatTime = (isoTime: string | undefined): string => {
+  if (!isoTime) return '-';
   try {
     const date = new Date(isoTime);
+    if (isNaN(date.getTime())) return isoTime;
     return date.toLocaleString('zh-CN', {
       year: 'numeric',
       month: '2-digit',
@@ -136,10 +139,12 @@ export const TaskDetailView: React.FC<{
     ? 'text-blue-600'
     : 'text-yellow-600';
 
-  const fileTypeData = Object.entries(task.fileTypes).map(([type, count]) => ({
-    type,
-    count,
-  }));
+  const fileTypeData = task.fileTypes 
+    ? Object.entries(task.fileTypes).map(([type, count]) => ({
+        type,
+        count,
+      }))
+    : [];
 
   return (
     <div className="space-y-4">
@@ -208,19 +213,19 @@ export const TaskDetailView: React.FC<{
               <FileText className="w-3 h-3 md:w-4 md:h-4" />
               处理文件总数
             </CardDescription>
-            <CardTitle className="text-2xl md:text-3xl">{task.filesProcessed}</CardTitle>
+            <CardTitle className="text-2xl md:text-3xl">{task.filesProcessed ?? 0}</CardTitle>
           </CardHeader>
         </Card>
         <Card>
           <CardHeader className="pb-3">
             <CardDescription className="text-xs md:text-sm">相似度匹配</CardDescription>
-            <CardTitle className="text-2xl md:text-3xl text-blue-600">{task.similarityMatched}</CardTitle>
+            <CardTitle className="text-2xl md:text-3xl text-blue-600">{task.similarityMatched ?? 0}</CardTitle>
           </CardHeader>
         </Card>
         <Card>
           <CardHeader className="pb-3">
             <CardDescription className="text-xs md:text-sm">AI分类</CardDescription>
-            <CardTitle className="text-2xl md:text-3xl text-purple-600">{task.aiClassified}</CardTitle>
+            <CardTitle className="text-2xl md:text-3xl text-purple-600">{task.aiClassified ?? 0}</CardTitle>
           </CardHeader>
         </Card>
         <Card>
@@ -230,7 +235,7 @@ export const TaskDetailView: React.FC<{
               Token消耗
             </CardDescription>
             <CardTitle className="text-2xl md:text-3xl text-orange-600">
-              {task.tokensUsed.toLocaleString()}
+              {(task.tokensUsed ?? 0).toLocaleString()}
             </CardTitle>
           </CardHeader>
         </Card>

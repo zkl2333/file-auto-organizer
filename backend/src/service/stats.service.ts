@@ -115,6 +115,65 @@ export class StatsService {
   }
 
   /**
+   * 删除任务日志目录
+   */
+  private deleteTaskLogDir(taskId: string): void {
+    const taskLogDir = path.join(config.LOG_DIR, "tasks", taskId);
+    if (fs.existsSync(taskLogDir)) {
+      try {
+        fs.rmSync(taskLogDir, { recursive: true, force: true });
+        systemLogger.info({ taskId, taskLogDir }, "任务日志目录已删除");
+      } catch (error) {
+        systemLogger.error({ error, taskId, taskLogDir }, "删除任务日志目录失败");
+      }
+    }
+  }
+
+  /**
+   * 删除任务记录
+   */
+  deleteTaskRecord(taskId: string): boolean {
+    const records = this.readRecords();
+    const index = records.findIndex(r => r.taskId === taskId);
+    if (index === -1) {
+      return false;
+    }
+    records.splice(index, 1);
+    this.writeRecords(records);
+    this.deleteTaskLogDir(taskId);
+    systemLogger.info({ taskId }, "任务记录已删除");
+    return true;
+  }
+
+  /**
+   * 批量删除任务记录
+   */
+  deleteTaskRecords(taskIds: string[]): { deleted: string[]; notFound: string[] } {
+    const records = this.readRecords();
+    const deleted: string[] = [];
+    const notFound: string[] = [];
+
+    for (const taskId of taskIds) {
+      const index = records.findIndex(r => r.taskId === taskId);
+      if (index !== -1) {
+        records.splice(index, 1);
+        deleted.push(taskId);
+      } else {
+        notFound.push(taskId);
+      }
+      // 无论任务记录是否存在，都尝试删除日志目录（可能残留）
+      this.deleteTaskLogDir(taskId);
+    }
+
+    if (deleted.length > 0) {
+      this.writeRecords(records);
+      systemLogger.info({ deleted, notFound }, "批量删除任务记录完成");
+    }
+
+    return { deleted, notFound };
+  }
+
+  /**
    * 按时间范围获取统计数据
    * @param range 时间范围
    * @param includeDryRun 是否包含 dry-run 任务，默认不包含

@@ -179,6 +179,22 @@ export const api = {
     return res.json();
   },
 
+  deleteTask: async (taskId: string): Promise<{ success: boolean; message: string }> => {
+    const res = await fetch(`/api/task/${taskId}`, {
+      method: 'DELETE',
+    });
+    return res.json();
+  },
+
+  deleteTasks: async (taskIds: string[]): Promise<{ success: boolean; message: string; deleted: string[]; notFound: string[] }> => {
+    const res = await fetch('/api/tasks', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ taskIds }),
+    });
+    return res.json();
+  },
+
   getTaskLogs: async (taskId: string, type: string = 'main', limit: number = 200): Promise<{ logs: string[] }> => {
     const res = await fetch(`/api/task/${taskId}/logs?type=${type}&limit=${limit}`);
     return res.json();

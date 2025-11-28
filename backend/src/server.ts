@@ -250,7 +250,7 @@ export async function startServer(mainService?: MainService) {
   // 注册 CORS
   await server.register(cors, {
     origin: "*",
-    methods: ["GET", "POST", "PUT", "PATCH", "OPTIONS"],
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type"],
   });
 
@@ -413,7 +413,42 @@ export async function startServer(mainService?: MainService) {
     async (request: FastifyRequest<{ Params: { taskId: string } }>, reply: FastifyReply) => {
       try {
         const taskId = request.params.taskId;
-        const task = statsService.getTaskRecord(taskId);
+        let task = statsService.getTaskRecord(taskId);
+        
+        // 如果从 statsService 找不到任务，检查是否有运行中的任务
+        if (!task) {
+          const runningStatus = MainService.getRunningStatus();
+          if (runningStatus.isRunning && runningStatus.taskId === taskId && runningStatus.startTime) {
+            // 创建运行中的任务记录
+            const now = Date.now();
+            task = {
+              taskId: runningStatus.taskId,
+              timestamp: new Date(runningStatus.startTime).toISOString(),
+              startTime: new Date(runningStatus.startTime).toISOString(),
+              endTime: "",
+              duration: now - runningStatus.startTime,
+              aiCalls: 0,
+              tokensUsed: 0,
+              filesProcessed: 0,
+              similarityMatched: 0,
+              aiClassified: 0,
+              fileTypes: {},
+              status: 'running',
+              dryRun: runningStatus.dryRun,
+            };
+          }
+        } else if (task.status === 'running') {
+          // 如果任务状态是 running，更新实时耗时
+          const runningStatus = MainService.getRunningStatus();
+          if (runningStatus.isRunning && runningStatus.taskId === taskId && runningStatus.startTime) {
+            const now = Date.now();
+            task = {
+              ...task,
+              duration: now - runningStatus.startTime,
+            };
+          }
+        }
+        
         if (!task) {
           reply.status(404).send({
             error: "Not Found",
@@ -424,6 +459,69 @@ export async function startServer(mainService?: MainService) {
         reply.send(task);
       } catch (error) {
         logger.error({ err: error }, "获取任务详情失败");
+        reply.status(500).send({
+          error: "Internal Server Error",
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+  );
+
+  // DELETE /api/task/:taskId - 删除任务记录
+  server.delete<{
+    Params: { taskId: string };
+  }>(
+    "/api/task/:taskId",
+    async (request: FastifyRequest<{ Params: { taskId: string } }>, reply: FastifyReply) => {
+      try {
+        const taskId = request.params.taskId;
+        const deleted = statsService.deleteTaskRecord(taskId);
+        if (!deleted) {
+          reply.status(404).send({
+            error: "Not Found",
+            message: `任务 ${taskId} 不存在`,
+          });
+          return;
+        }
+        reply.send({
+          success: true,
+          message: `任务 ${taskId} 已删除`,
+        });
+      } catch (error) {
+        logger.error({ err: error }, "删除任务失败");
+        reply.status(500).send({
+          error: "Internal Server Error",
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+  );
+
+  // DELETE /api/tasks - 批量删除任务记录
+  server.delete<{
+    Body: { taskIds: string[] };
+  }>(
+    "/api/tasks",
+    async (request: FastifyRequest<{ Body: { taskIds: string[] } }>, reply: FastifyReply) => {
+      try {
+        const { taskIds } = request.body;
+        if (!Array.isArray(taskIds) || taskIds.length === 0) {
+          reply.status(400).send({
+            error: "Bad Request",
+            message: "taskIds 必须是非空数组",
+          });
+          return;
+        }
+
+        const result = statsService.deleteTaskRecords(taskIds);
+        reply.send({
+          success: true,
+          message: `已删除 ${result.deleted.length} 条记录`,
+          deleted: result.deleted,
+          notFound: result.notFound,
+        });
+      } catch (error) {
+        logger.error({ err: error }, "批量删除任务失败");
         reply.status(500).send({
           error: "Internal Server Error",
           message: error instanceof Error ? error.message : String(error),
@@ -465,9 +563,12 @@ export async function startServer(mainService?: MainService) {
         const type = request.query.type || "main";
         const limit = parseInt(request.query.limit || "200");
         
-        // 检查任务是否存在
+        // 检查任务是否存在（包括运行中的任务）
         const task = statsService.getTaskRecord(taskId);
-        if (!task) {
+        const runningStatus = MainService.getRunningStatus();
+        const isRunningTask = runningStatus.isRunning && runningStatus.taskId === taskId;
+        
+        if (!task && !isRunningTask) {
           reply.status(404).send({
             error: "Not Found",
             message: `任务 ${taskId} 不存在`,

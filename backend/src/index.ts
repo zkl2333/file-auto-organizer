@@ -7,6 +7,11 @@ import { cleanupFileInfo, cleanupFileInfoSync } from "./service/file-info.servic
 import { processManager } from "./process-manager.js";
 import { startServer } from "./server.js";
 
+// 设置默认时区为上海时区（如果环境变量未设置）
+if (!process.env.TZ) {
+  process.env.TZ = "Asia/Shanghai";
+}
+
 const { OPENAI_API_KEY, CRON_SCHEDULE } = config;
 
 // 全局定时任务实例和当前调度表达式
@@ -107,10 +112,10 @@ function rebuildCronTask(statsService: StatsService, mainService: MainService) {
   cronTask = cron.schedule(
     currentSchedule,
     createCronHandler(statsService, mainService),
-    { timezone: process.env.TZ }
+    { timezone: process.env.TZ || "Asia/Shanghai" }
   );
   
-  logger.info({ schedule: currentSchedule }, "定时任务调度器已重建");
+  logger.info({ schedule: currentSchedule, tz: process.env.TZ || "Asia/Shanghai" }, "定时任务调度器已重建");
 }
 
 /**
@@ -124,10 +129,10 @@ async function startScheduledMode(mainService: MainService): Promise<void> {
   cronTask = cron.schedule(
     CRON_SCHEDULE,
     createCronHandler(statsService, mainService),
-    { timezone: process.env.TZ }
+    { timezone: process.env.TZ || "Asia/Shanghai" }
   );
 
-  logger.info({ schedule: CRON_SCHEDULE, tz: process.env.TZ }, "定时任务已启动");
+  logger.info({ schedule: CRON_SCHEDULE, tz: process.env.TZ || "Asia/Shanghai" }, "定时任务已启动");
 
   const server = await startServer(mainService);
 

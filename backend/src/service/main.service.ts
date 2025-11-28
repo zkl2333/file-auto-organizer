@@ -111,9 +111,9 @@ export class MainService {
    * 生成任务ID
    */
   private generateTaskId(): string {
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
-    const random = randomBytes(4).toString('hex');
-    return `task-${timestamp}-${random}`;
+    const ts = Date.now().toString(36);
+    const rand = randomBytes(2).toString('hex');
+    return `task-${ts}-${rand}`;
   }
 
   /**

@@ -74,10 +74,12 @@ export const StatsView: React.FC<StatsViewProps> = ({ timeRange = 'week' }) => {
   if (!usageStats) return null;
 
   // 准备文件类型饼图数据
-  const fileTypeData = Object.entries(usageStats.fileTypes)
-    .map(([name, value]) => ({ name, value }))
-    .sort((a, b) => b.value - a.value)
-    .slice(0, 8); // 只显示前8种
+  const fileTypeData = usageStats.fileTypes
+    ? Object.entries(usageStats.fileTypes)
+        .map(([name, value]) => ({ name, value }))
+        .sort((a, b) => b.value - a.value)
+        .slice(0, 8) // 只显示前8种
+    : [];
 
   // 优化的颜色配置 - 使用现代渐变色系
   const COLORS = [
