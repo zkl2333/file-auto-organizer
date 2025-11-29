@@ -32,9 +32,12 @@
 - [x] 安装必要的依赖包
 - [x] 配置 next.config.ts 支持外部包
 - [x] 配置 Git 分支和版本控制
+- [x] 创建项目目录结构和类型定义
+- [x] 实现 API 客户端库和配置管理
+- [x] 创建基础 API Routes (健康检查、系统信息)
 
 ### 🚧 进行中
-- [ ] 配置项目基础结构
+- [ ] 创建完整 API Routes 结构
 
 ### 📋 待完成
 - [ ] 迁移前端组件到 Next.js
@@ -50,7 +53,7 @@
 3. Webpack 配置: 客户端不打包服务端模块
 
 ### 依赖管理
-- 保留 UI 组件库: Radix UI, Tailwind CSS
+- 保留 UI 组件库: shadcn, Tailwind CSS
 - 服务层依赖: OpenAI, exiftool-vendored 等
 - 移除 Fastify: 使用 Next.js API Routes
 
