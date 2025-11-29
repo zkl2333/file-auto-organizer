@@ -2,7 +2,7 @@ import pino from 'pino';
 import fs from 'node:fs';
 import path from 'node:path';
 import { createStream } from 'rotating-file-stream';
-import { LogModule, getLogConfig, getGlobalLogPaths, getTaskLogPath } from './log-config';
+import { LogModule, getLogConfig, getTaskLogPath } from './log-config';
 
 /**
  * Next.js 日志系统
@@ -279,7 +279,7 @@ export function cleanupLogFiles(): void {
   flushLogs();
 
   // 清理所有任务日志流
-  taskDestinations.forEach((taskDests, taskId) => {
+  taskDestinations.forEach((_taskDests, taskId) => {
     cleanupTaskLogStreams(taskId);
   });
   taskDestinations.clear();

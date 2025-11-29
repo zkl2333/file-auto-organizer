@@ -1,10 +1,9 @@
 'use client';
 
-import React from 'react';
 import { useConnectionStatus, useSmartRealtimeUpdates } from '@/hooks/useRealtimeUpdates';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { Wifi, WifiOff, Activity, Clock } from 'lucide-react';
+import { Wifi, WifiOff, Activity } from 'lucide-react';
 
 interface RealtimeStatusIndicatorProps {
   className?: string;

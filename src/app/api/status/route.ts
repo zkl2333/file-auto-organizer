@@ -1,10 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { MainService } from '@/lib/services/main.service';
 import { systemLogger } from '@/lib/logger';
 import { getConfig } from '@/lib/config';
 
 // GET /api/status - 获取任务运行状态
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     // 获取当前配置快照
     const config = getConfig();

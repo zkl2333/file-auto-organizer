@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { useTaskHistory } from '@/hooks/useApi';
 import { useTaskHistoryRealtime, useSmartRealtimeUpdates } from '@/hooks/useRealtimeUpdates';
 import { api } from '@/lib/api-client';
 import type { TaskRecord } from '@/lib/api-client';
@@ -167,7 +166,7 @@ export const TaskHistoryView: React.FC<{ onViewDetail?: (taskId: string) => void
 
   // 使用智能实时更新
   const { taskHistory, error, isLoading, refreshHistory } = useTaskHistoryRealtime();
-  const { isTaskRunning, refreshStrategy } = useSmartRealtimeUpdates();
+  useSmartRealtimeUpdates(); // 用于实时更新，但不需要返回值
   const [pageIndex, setPageIndex] = useState(0);
   const [pageSize, setPageSize] = useState(10);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());

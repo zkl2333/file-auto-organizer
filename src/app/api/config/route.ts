@@ -2,23 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { loadConfig, updateConfig, getTaskConfig } from '@/lib/config';
 import { z } from 'zod';
 
-// Import the config to get current values
-let currentConfig: any;
-loadConfig()
-  .then((config) => {
-    currentConfig = config;
-  })
-  .catch(() => {
-    // If loading fails, use a default config structure
-    currentConfig = {
-      openai: { api_key: '', model: 'gpt-4', base_url: '' },
-      directories: { root_dir: './分类库', incoming_dir: './待分类' },
-      scan: { similarity_threshold: 0.8, max_depth: 10 },
-      logging: { level: 'info', dir: './logs' },
-      cron: { enabled: false, schedule: '0 */6 * * *' },
-    };
-  });
-
 // Configuration validation schema
 const configSchema = z.object({
   openai: z
@@ -57,7 +40,7 @@ const configSchema = z.object({
  * Get configuration API
  * GET /api/config
  */
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     const config = await loadConfig();
     const taskConfig = getTaskConfig();

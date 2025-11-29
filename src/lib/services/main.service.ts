@@ -2,13 +2,7 @@ import path from 'node:path';
 import { mainLogger, setCurrentTaskId } from '@/lib/logger';
 import { getTaskConfig } from '@/lib/config';
 import { TaskUtils } from '@/lib/utils/task-utils';
-import { v4 as uuidv4 } from 'uuid';
-import {
-  type ProcessedFile,
-  type FileProcessStatus,
-  type FileProcessStage,
-  type FileProcessMethod,
-} from '@/lib/api-client';
+import { type ProcessedFile } from '@/lib/api-client';
 import { StatsService } from './stats.service';
 import { FileStatusService } from './file-status.service';
 
@@ -37,13 +31,11 @@ export class MainService {
   private static currentTaskDryRun: boolean = false;
 
   private config = getTaskConfig();
-  private currentKnownDirs: string[] = []; // 动态维护的已知目录列表
   private statsService = new StatsService(); // 统计服务实例
   private fileStatusService = new FileStatusService(); // 文件状态服务实例
 
   constructor() {
-    // 初始化已知目录列表
-    this.currentKnownDirs = this.scanDirectories();
+    // 初始化服务
   }
 
   /**
@@ -146,7 +138,7 @@ export class MainService {
    * 根据文件名和类型确定处理方式
    */
   private determineProcessMethod(
-    fileName: string,
+    _fileName: string,
     fileType: string
   ): 'similarity' | 'ai' | 'manual' {
     // 模拟处理逻辑：某些文件类型优先使用相似度匹配
@@ -293,34 +285,6 @@ export class MainService {
       return `图像文件分析，识别为图片类文件`;
     } else {
       return `基于文件名模式"${fileName}"和类型${fileType}的智能分类结果`;
-    }
-  }
-
-  /**
-   * 扫描目录获取已知文件夹列表
-   */
-  private scanDirectories(): string[] {
-    try {
-      const { rootDir } = this.config;
-      const fs = require('fs');
-      const path = require('path');
-
-      // 解析为绝对路径，相对于当前工作目录
-      const absoluteRootDir = path.resolve(process.cwd(), rootDir);
-
-      if (!fs.existsSync(absoluteRootDir)) {
-        mainLogger.warn({ rootDir, absoluteRootDir, cwd: process.cwd() }, '根目录不存在');
-        return [];
-      }
-
-      const entries = fs.readdirSync(absoluteRootDir, { withFileTypes: true });
-      return entries
-        .filter((entry: any) => entry.isDirectory())
-        .map((entry: any) => entry.name)
-        .filter((name: string) => !name.startsWith('.'));
-    } catch (error) {
-      mainLogger.error({ error }, '扫描目录失败');
-      return [];
     }
   }
 

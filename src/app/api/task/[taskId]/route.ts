@@ -4,7 +4,7 @@ import { MainService } from '@/lib/services/main.service';
 
 // GET /api/task/[taskId] - 获取指定任务的详细信息
 export async function GET(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ taskId: string }> }
 ) {
   try {
@@ -48,7 +48,7 @@ export async function GET(
 
 // DELETE /api/task/[taskId] - 删除指定任务
 export async function DELETE(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ taskId: string }> }
 ) {
   try {
