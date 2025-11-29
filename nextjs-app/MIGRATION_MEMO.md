@@ -49,10 +49,15 @@
 - [x] 迁移完整 /stats 页面（动态路由 + 统计图表）
 - [x] 迁移 /config 页面（配置管理）
 - [x] 修复 API 数据结构兼容性问题
+- [x] 完整实现 usage-stats API 功能（不使用模拟数据）
+- [x] 创建完整的服务端统计系统（StatsService + Logger）
+- [x] 项目重组：nextjs-app 作为独立项目根目录
+- [x] 迁移 Docker 配置（Dockerfile + docker-compose.yaml）
+- [x] 更新项目文档（README.md + 配置文件）
 
 ### 🚧 进行中
 
-- [ ] 迁移 /logs 页面
+- [ ] 迁移 /logs 页面（外层容器 → 日志机制 → 日志界面）
 - [ ] 迁移 /trigger 页面
 - [ ] 迁移 /task-history 页面
 
