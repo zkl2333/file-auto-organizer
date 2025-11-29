@@ -1,4 +1,6 @@
-import { useLocation } from 'react-router-dom';
+'use client';
+
+import { usePathname } from 'next/navigation';
 import { Separator } from '@/components/ui/separator';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { ThemeToggle } from '@/components/theme-toggle';
@@ -13,8 +15,8 @@ const viewTitles: Record<ViewType, string> = {
 };
 
 export function SiteHeader() {
-  const location = useLocation();
-  const currentView = location.pathname.slice(1) || ('stats' as ViewType);
+  const pathname = usePathname();
+  const currentView = pathname.slice(1) || ('stats' as ViewType);
 
   return (
     <header className="flex h-(--header-height) shrink-0 items-center gap-2 border-b transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-(--header-height)">

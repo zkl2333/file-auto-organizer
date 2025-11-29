@@ -1,5 +1,8 @@
+'use client';
+
 import { type Icon } from '@tabler/icons-react';
-import { Link, useLocation } from 'react-router-dom';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 
 import {
   SidebarGroup,
@@ -19,11 +22,11 @@ export function NavMain({
     icon?: Icon;
   }[];
 }) {
-  const location = useLocation();
+  const pathname = usePathname();
 
   const isActive = (itemId: string) => {
     const itemPath = `/${itemId}`;
-    return location.pathname === itemPath || location.pathname.startsWith(`${itemPath}/`);
+    return pathname === itemPath || pathname.startsWith(`${itemPath}/`);
   };
 
   return (
@@ -38,7 +41,7 @@ export function NavMain({
                 isActive={isActive(item.id)}
                 asChild
               >
-                <Link to={`/${item.id}`}>
+                <Link href={`/${item.id}`}>
                   {item.icon && <item.icon />}
                   <span>{item.title}</span>
                 </Link>

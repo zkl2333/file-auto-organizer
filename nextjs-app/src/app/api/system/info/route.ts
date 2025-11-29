@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { loadConfig } from '@/lib/config';
 
 /**
- * �����o API
+ * 获取系统信息 API
  * GET /api/system/info
  */
 export async function GET(request: NextRequest) {

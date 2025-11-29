@@ -3,9 +3,10 @@
 import { useEffect, useState } from 'react';
 import { statsApi } from '@/lib/api';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { StatCard } from '@/components/StatCard';
+import { StatCard } from '@/components/stat-card';
 import { SectionCards } from '@/components/section-cards';
 import { ChartAreaInteractive } from '@/components/chart-area-interactive';
+import { FileText, CheckCircle, Clock, XCircle } from 'lucide-react';
 
 export default function StatsPage() {
   const [statsData, setStatsData] = useState<any>(null);
@@ -67,22 +68,38 @@ export default function StatsPage() {
         <StatCard
           title="Total Files"
           value={statsData.totalFiles?.toString() || '0'}
-          description="Files in root directory"
+          unit="files"
+          icon={FileText}
+          badge="总计"
+          theme="blue"
+          footer={<p className="text-xs text-muted-foreground">根目录文件数量</p>}
         />
         <StatCard
           title="Processed"
           value={statsData.processedFiles?.toString() || '0'}
-          description="Successfully processed"
+          unit="files"
+          icon={CheckCircle}
+          badge="成功"
+          theme="green"
+          footer={<p className="text-xs text-muted-foreground">成功处理</p>}
         />
         <StatCard
           title="Pending"
           value={statsData.pendingFiles?.toString() || '0'}
-          description="Waiting for processing"
+          unit="files"
+          icon={Clock}
+          badge="等待"
+          theme="orange"
+          footer={<p className="text-xs text-muted-foreground">等待处理</p>}
         />
         <StatCard
           title="Errors"
           value={statsData.errorFiles?.toString() || '0'}
-          description="Processing errors"
+          unit="files"
+          icon={XCircle}
+          badge="错误"
+          theme="purple"
+          footer={<p className="text-xs text-muted-foreground">处理错误</p>}
         />
       </div>
 
