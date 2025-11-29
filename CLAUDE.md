@@ -4,29 +4,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 项目状态
 
-**⚠️ 项目迁移中**
+**✅ 迁移已完成**
 
-这是一个正在从 React Router + Fastify 架构迁移到 Next.js 全栈应用的项目。当前处于 `nextjs-migration` 分支。在每次提交前规划下一步并更新备忘录，提交后读取备忘录来跟踪进度。
+项目已成功从 React Router + Fastify 架构迁移到 Next.js 全栈应用。所有核心功能已迁移并测试通过。
 
-### 迁移策略
-
-采用 **"先复制再修改跑通"** 的迁移方式：
-
-1. **复制**: 从原项目复制代码文件到 Next.js 对应目录
-2. **修改**: 适配 Next.js 的 API Routes 和 App Router 结构
-3. **跑通**: 确保功能完全正常后再继续下一个模块
-4. **测试**: 使用 MCP (Model Context Protocol) 工具进行功能测试验证
-
-### 测试工具
-
-项目集成了多种 MCP 工具用于开发和测试：
-
-- **devtools**: 浏览器自动化测试，支持页面交互和截图
-- **playwright**: 端到端测试，模拟用户操作流程
-- **sequential-thinking**: 复杂问题分析和解决
-- **shadcn**: UI 组件测试和验证
-
-**迁移备忘录**: 详细的迁移进度和计划请查看 [MIGRATION_MEMO.md](./MIGRATION_MEMO.md)
+**迁移备忘录**: 详细信息请查看 [MIGRATION_MEMO.md](./MIGRATION_MEMO.md)
 
 ## 开发命令
 
@@ -132,14 +114,14 @@ src/
 4. **文件操作**: 所有文件操作都应考虑重试机制和错误处理
 5. **AI 调用**: 注意控制 API 调用频率，优先使用相似度匹配减少成本
 
-### 迁移开发流程
+### 开发流程
 
-1. **模块迁移顺序**: 按照 MIGRATION_MEMO.md 中的计划逐个迁移页面和 API
-2. **测试验证**: 每完成一个模块，使用以下工具进行功能测试：
+1. **功能开发**: 按照 Next.js 最佳实践进行开发
+2. **测试验证**: 使用以下工具进行功能测试：
    - **API 测试**: 使用 `curl` 或 `fetch` 测试 API 端点响应
-   - **页面测试**: 使用 `mcp__devtools` 进行页面交互测试
-   - **端到端测试**: 使用 `mcp__playwright` 进行完整用户流程测试
-3. **代码质量**: 确保迁移后的代码符合 Next.js 最佳实践
+   - **页面测试**: 使用浏览器开发工具进行页面交互测试
+   - **端到端测试**: 使用 Playwright 进行完整用户流程测试
+3. **代码质量**: 确保代码符合 Next.js 最佳实践
 
 ### API 测试示例
 
