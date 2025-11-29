@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { loadConfig, updateConfig, getTaskConfig } from '@/lib/config';
 import { z } from 'zod';
 
-// Mnå¡ schema
+// Configuration validation schema
 const configSchema = z.object({
   openai: z.object({
     api_key: z.string().optional(),
@@ -27,7 +27,7 @@ const configSchema = z.object({
 });
 
 /**
- * ∑÷Mn API
+ * Get configuration API
  * GET /api/config
  */
 export async function GET(request: NextRequest) {
@@ -55,24 +55,24 @@ export async function GET(request: NextRequest) {
 }
 
 /**
- * Ù∞Mn API
+ * Update configuration API
  * PUT /api/config
  */
 export async function PUT(request: NextRequest) {
   try {
     const body = await request.json();
 
-    // å¡Mn<
+    // Validate configuration format
     const validatedConfig = configSchema.parse(body);
 
-    // Ù∞Mn
+    // Update configuration
     updateConfig(validatedConfig);
 
     const updatedConfig = await loadConfig();
 
     return NextResponse.json({
       success: true,
-      message: 'MnÙ∞ü',
+      message: 'Configuration updated successfully',
       data: {
         config: updatedConfig,
       },
@@ -84,7 +84,7 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json(
         {
           success: false,
-          error: 'Mn<Ô',
+          error: 'Configuration format error',
           details: error.errors,
         },
         { status: 400 }

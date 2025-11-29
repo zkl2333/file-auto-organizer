@@ -4,7 +4,7 @@ import { TaskStatus } from '@/types';
 import { v4 as uuidv4 } from 'uuid';
 
 /**
- * æÑû¡gL API
+ * Trigger task execution API
  * POST /api/trigger?dryRun=true/false
  */
 export async function POST(request: NextRequest) {
@@ -14,14 +14,14 @@ export async function POST(request: NextRequest) {
 
     const config = await loadConfig();
 
-    // Àå/&	û¡c(ÐL
-    // ÙÌ”å	ôŒ„„:6
+    // Check if there is already a task running
+    // This should have a more complete locking mechanism
 
-    // ú°û¡
+    // Create new task
     const taskId = uuidv4();
     const task: TaskStatus = {
       id: taskId,
-      name: `‡ötû¡ - ${dryRun ? 'ÕÐL' : 'cÐL'}`,
+      name: 'File Organization Task - ' + (dryRun ? 'Dry Run' : 'Production'),
       status: 'pending',
       progress: 0,
       totalFiles: 0,
@@ -41,19 +41,19 @@ export async function POST(request: NextRequest) {
       },
     };
 
-    // ÙÌ”å/¨žE„û¡A
-    // ‚öÔÞŸÍ”
+    // Here the actual task processing process should be started
+    // For now, return success response
     const result = {
       success: true,
       message: dryRun
-        ? 'ÕÐLû¡ò/¨žEû¨‡ö'
-        : '‡ötû¡ò/¨',
+        ? 'Dry run task started, files will not be moved'
+        : 'File organization task started',
       taskId: taskId,
       dryRun: dryRun,
-      estimatedDuration: '„¡ 2-5 Ÿ',
+      estimatedDuration: 'Estimated 2-5 minutes',
     };
 
-    console.log(`Task ${taskId} started (dryRun: ${dryRun})`);
+    console.log('Task ' + taskId + ' started (dryRun: ' + dryRun + ')');
 
     return NextResponse.json(result);
   } catch (error) {
@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         success: false,
-        message: '/¨û¡1%',
+        message: 'Failed to start task',
         error: error instanceof Error ? error.message : 'Unknown error',
       },
       { status: 500 }

@@ -1,12 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // 配置外部包，特别是 exiftool-vendored 需要在服务端运行
-  experimental: {
-    serverComponentsExternalPackages: ['exiftool-vendored'],
-  },
+  // Configure external packages for server-side only
+  serverExternalPackages: ['exiftool-vendored'],
 
-  // 配置 API 路由重写
+  // Configure API route rewrites
   async rewrites() {
     return [
       {
@@ -16,10 +14,13 @@ const nextConfig: NextConfig = {
     ]
   },
 
-  // 配置 WebSocket 支持（如果需要实时通信）
-  webpack: (config, { isServer }) => {
+  // Configure Turbopack
+  turbopack: {},
+
+  // Configure Webpack with Turbopack compatibility
+  webpack: (config, { isServer, dev }) => {
     if (!isServer) {
-      // 客户端不打包服务端专用模块
+      // Don't bundle server-side modules on client
       config.resolve.fallback = {
         ...config.resolve.fallback,
         fs: false,

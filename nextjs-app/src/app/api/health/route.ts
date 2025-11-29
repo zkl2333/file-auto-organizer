@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 /**
- * e∑¿Â API
+ * Health check API endpoint
  * GET /api/health
  */
 export async function GET(request: NextRequest) {
   try {
-    // ¿Â˚ﬂe∑∂
     const healthCheck = {
       status: 'healthy' as const,
       timestamp: new Date().toISOString(),
