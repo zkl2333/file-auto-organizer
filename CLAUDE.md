@@ -4,9 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 项目状态
 
-**✅ 迁移已完成**
+**🚧 迁移进行中**
 
-项目已成功从 React Router + Fastify 架构迁移到 Next.js 全栈应用。所有核心功能已迁移并测试通过。
+项目正在从 React Router + Fastify 架构迁移到 Next.js 全栈应用。代码已可成功构建，但需要完整的功能测试和问题修复。
 
 **迁移备忘录**: 详细信息请查看 [MIGRATION_MEMO.md](./MIGRATION_MEMO.md)
 
