@@ -196,6 +196,13 @@ export class StatsService {
   }
 
   /**
+   * 获取任务详细信息（别名方法，保持API一致性）
+   */
+  getTaskDetail(taskId: string) {
+    return this.getTaskRecord(taskId);
+  }
+
+  /**
    * 删除任务记录
    */
   deleteTaskRecord(taskId: string): boolean {
@@ -214,6 +221,18 @@ export class StatsService {
       systemLogger.error({ error, taskId }, '删除任务统计记录失败');
       return false;
     }
+  }
+
+  /**
+   * 删除任务（别名方法，保持API一致性）
+   */
+  async deleteTask(taskId: string): Promise<{ success: boolean; message: string }> {
+    const success = this.deleteTaskRecord(taskId);
+
+    return {
+      success,
+      message: success ? '任务删除成功' : '任务不存在或删除失败',
+    };
   }
 
   /**
