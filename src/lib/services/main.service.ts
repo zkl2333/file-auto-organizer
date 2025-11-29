@@ -105,7 +105,7 @@ export class MainService {
 
       // 读取日志文件内容
       const logContent = fs.readFileSync(logFilePath, 'utf-8');
-      const logLines = logContent.split('\n').filter((line) => line.trim());
+      const logLines = logContent.split('\n').filter((line: string) => line.trim());
 
       // 返回指定数量的最新日志（倒序）
       return logLines.slice(-limit).reverse();
@@ -315,9 +315,9 @@ export class MainService {
 
       const entries = fs.readdirSync(absoluteRootDir, { withFileTypes: true });
       return entries
-        .filter((entry) => entry.isDirectory())
-        .map((entry) => entry.name)
-        .filter((name) => !name.startsWith('.'));
+        .filter((entry: any) => entry.isDirectory())
+        .map((entry: any) => entry.name)
+        .filter((name: string) => !name.startsWith('.'));
     } catch (error) {
       mainLogger.error({ error }, '扫描目录失败');
       return [];
@@ -346,8 +346,8 @@ export class MainService {
 
       const entries = fs.readdirSync(absoluteIncomingDir, { withFileTypes: true });
       return entries
-        .filter((entry) => entry.isFile())
-        .map((entry) => path.join(absoluteIncomingDir, entry.name));
+        .filter((entry: any) => entry.isFile())
+        .map((entry: any) => path.join(absoluteIncomingDir, entry.name));
     } catch (error) {
       mainLogger.error({ error }, '扫描待处理文件失败');
       return [];

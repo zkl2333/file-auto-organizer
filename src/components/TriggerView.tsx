@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useStatus } from '@/hooks/useApi';
+import { useSystemStatusRealtime, useTaskCompletionNotification } from '@/hooks/useRealtimeUpdates';
 import { api } from '@/lib/api-client';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -24,9 +25,12 @@ export const TriggerView: React.FC = () => {
     text: string;
   } | null>(null);
 
-  // 使用 SWR 获取定时任务状态
-  const { data: status, mutate } = useStatus();
+  // 使用增强的实时状态管理
+  const { status, isLoading: statusLoading, refreshStatus } = useSystemStatusRealtime();
   const cronEnabled = status?.cronEnabled;
+
+  // 任务完成通知
+  useTaskCompletionNotification(status?.currentTaskId || '');
 
   const handleTrigger = async () => {
     setLoading(true);
@@ -36,7 +40,7 @@ export const TriggerView: React.FC = () => {
       const res = await api.triggerTask(dryRun);
       setResult(res);
       // 触发后刷新状态
-      mutate();
+      refreshStatus();
     } catch (err) {
       setResult({
         success: false,
@@ -55,7 +59,7 @@ export const TriggerView: React.FC = () => {
     try {
       const res = await api.toggleCron(enabled);
       // 刷新状态
-      mutate();
+      refreshStatus();
       setCronMessage({ type: 'success', text: res.message });
       setTimeout(() => setCronMessage(null), 3000);
     } catch (err) {

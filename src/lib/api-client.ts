@@ -115,6 +115,9 @@ export type FileProcessStatus =
 // 文件处理阶段
 export type FileProcessStage = 'scan' | 'similarity' | 'ai' | 'move' | 'complete';
 
+// 文件处理方法
+export type FileProcessMethod = 'similarity' | 'ai' | 'manual';
+
 export interface ProcessedFile {
   name: string;
   originalPath: string;
@@ -127,6 +130,7 @@ export interface ProcessedFile {
   score?: number;
   reasoning?: string; // AI分类原因
   timestamp: number;
+  taskId?: string; // 任务ID
   // 新增字段
   processStage?: FileProcessStage; // 当前处理阶段
   progress?: number; // 处理进度 0-100
@@ -155,87 +159,131 @@ export interface TaskRecord {
   dryRun: boolean;
 }
 
+// API 错误类
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    public status?: number,
+    public code?: string,
+    public data?: unknown
+  ) {
+    super(message);
+    this.name = 'ApiError';
+  }
+}
+
+// 通用请求处理函数
+async function handleApiRequest<T>(
+  request: Promise<Response>,
+  errorMessage: string = '请求失败'
+): Promise<T> {
+  try {
+    const response = await request;
+
+    if (!response.ok) {
+      let errorData: unknown;
+      try {
+        errorData = await response.json();
+      } catch {
+        errorData = await response.text();
+      }
+
+      const message =
+        typeof errorData === 'object' && errorData && 'message' in errorData
+          ? String(errorData.message)
+          : `${errorMessage}: HTTP ${response.status} ${response.statusText}`;
+
+      throw new ApiError(message, response.status, response.statusText, errorData);
+    }
+
+    return await response.json();
+  } catch (error) {
+    if (error instanceof ApiError) {
+      throw error;
+    }
+
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      throw new ApiError('网络连接失败，请检查网络设置');
+    }
+
+    throw new ApiError(`${errorMessage}: ${error instanceof Error ? error.message : '未知错误'}`);
+  }
+}
+
 export const api = {
   getStats: async (): Promise<Stats> => {
-    const res = await fetch('/api/stats');
-    return res.json();
+    return handleApiRequest(fetch('/api/stats'), '获取系统统计信息失败');
   },
 
   getStatus: async (): Promise<TaskStatus> => {
-    const res = await fetch('/api/status');
-    return res.json();
+    return handleApiRequest(fetch('/api/status'), '获取任务状态失败');
   },
 
   getLogs: async (type: string, limit: number = 200): Promise<{ logs: string[] }> => {
-    const res = await fetch(`/api/logs?type=${type}&limit=${limit}`);
-    return res.json();
+    return handleApiRequest(fetch(`/api/logs?type=${type}&limit=${limit}`), '获取日志失败');
   },
 
   triggerTask: async (dryRun: boolean = false): Promise<TriggerResult> => {
     const url = dryRun ? '/api/trigger?dryRun=true' : '/api/trigger';
-    const res = await fetch(url, {
-      method: 'POST',
-    });
-    return res.json();
+    return handleApiRequest(
+      fetch(url, { method: 'POST' }),
+      dryRun ? '执行模拟任务失败' : '执行任务失败'
+    );
   },
 
   getConfig: async (): Promise<ConfigData> => {
-    const res = await fetch('/api/config');
-    return res.json();
+    return handleApiRequest(fetch('/api/config'), '获取配置信息失败');
   },
 
   updateConfig: async (yamlContent: string): Promise<ConfigResult> => {
-    const res = await fetch('/api/config', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'text/plain' },
-      body: yamlContent,
-    });
-    return res.json();
+    return handleApiRequest(
+      fetch('/api/config', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'text/plain' },
+        body: yamlContent,
+      }),
+      '更新配置失败'
+    );
   },
 
   updateConfigJson: async (config: ConfigJson): Promise<ConfigResult> => {
-    const res = await fetch('/api/config', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(config),
-    });
-    return res.json();
+    return handleApiRequest(
+      fetch('/api/config', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(config),
+      }),
+      '更新配置失败'
+    );
   },
 
   getUsageStats: async (range: 'today' | 'week' | 'month' | 'all' = 'all'): Promise<UsageStats> => {
-    const res = await fetch(`/api/usage-stats?range=${range}`);
-    if (!res.ok) {
-      throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-    }
-    return res.json();
+    return handleApiRequest(fetch(`/api/usage-stats?range=${range}`), '获取使用统计失败');
   },
 
   getTaskHistory: async (): Promise<{ tasks: TaskRecord[] }> => {
-    const res = await fetch('/api/task-history');
-    return res.json();
+    return handleApiRequest(fetch('/api/task-history'), '获取任务历史失败');
   },
 
   getTaskDetail: async (taskId: string): Promise<TaskRecord> => {
-    const res = await fetch(`/api/task/${taskId}`);
-    return res.json();
+    return handleApiRequest(fetch(`/api/task/${taskId}`), '获取任务详情失败');
   },
 
   deleteTask: async (taskId: string): Promise<{ success: boolean; message: string }> => {
-    const res = await fetch(`/api/task/${taskId}`, {
-      method: 'DELETE',
-    });
-    return res.json();
+    return handleApiRequest(fetch(`/api/task/${taskId}`, { method: 'DELETE' }), '删除任务失败');
   },
 
   deleteTasks: async (
     taskIds: string[]
   ): Promise<{ success: boolean; message: string; deleted: string[]; notFound: string[] }> => {
-    const res = await fetch('/api/tasks', {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ taskIds }),
-    });
-    return res.json();
+    return handleApiRequest(
+      fetch('/api/tasks', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ taskIds }),
+      }),
+      '批量删除任务失败'
+    );
   },
 
   getTaskLogs: async (
@@ -243,23 +291,26 @@ export const api = {
     type: string = 'main',
     limit: number = 200
   ): Promise<{ logs: string[] }> => {
-    const res = await fetch(`/api/task/${taskId}/logs?type=${type}&limit=${limit}`);
-    return res.json();
+    return handleApiRequest(
+      fetch(`/api/task/${taskId}/logs?type=${type}&limit=${limit}`),
+      '获取任务日志失败'
+    );
   },
 
   getTaskFiles: async (taskId: string): Promise<TaskFileList> => {
-    const res = await fetch(`/api/task/${taskId}/files`);
-    return res.json();
+    return handleApiRequest(fetch(`/api/task/${taskId}/files`), '获取任务文件列表失败');
   },
 
   toggleCron: async (
     enabled: boolean
   ): Promise<{ success: boolean; message: string; enabled: boolean }> => {
-    const res = await fetch('/api/cron/toggle', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ enabled }),
-    });
-    return res.json();
+    return handleApiRequest(
+      fetch('/api/cron/toggle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled }),
+      }),
+      '切换定时任务失败'
+    );
   },
 };

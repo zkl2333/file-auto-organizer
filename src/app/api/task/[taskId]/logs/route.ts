@@ -35,7 +35,7 @@ export async function GET(
   } catch (error) {
     systemLogger.error(
       {
-        taskId: params.taskId,
+        taskId: await params.then(p => p.taskId),
         error: error instanceof Error ? error.message : String(error),
       },
       '获取任务日志失败'

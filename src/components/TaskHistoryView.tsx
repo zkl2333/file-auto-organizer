@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useTaskHistory } from '@/hooks/useApi';
+import { useTaskHistoryRealtime, useSmartRealtimeUpdates } from '@/hooks/useRealtimeUpdates';
 import { api } from '@/lib/api-client';
 import type { TaskRecord } from '@/lib/api-client';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -163,7 +164,10 @@ export const TaskHistoryView: React.FC<{ onViewDetail?: (taskId: string) => void
   onViewDetail,
 }) => {
   const router = useRouter();
-  const { data, error, isLoading, mutate } = useTaskHistory();
+
+  // 使用智能实时更新
+  const { taskHistory, error, isLoading, refreshHistory } = useTaskHistoryRealtime();
+  const { isTaskRunning, refreshStrategy } = useSmartRealtimeUpdates();
   const [pageIndex, setPageIndex] = useState(0);
   const [pageSize, setPageSize] = useState(10);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -171,7 +175,7 @@ export const TaskHistoryView: React.FC<{ onViewDetail?: (taskId: string) => void
   const [deleteTaskId, setDeleteTaskId] = useState<string | null>(null);
   const [showBatchDeleteDialog, setShowBatchDeleteDialog] = useState(false);
 
-  const tasks = data?.tasks || [];
+  const tasks = taskHistory || [];
 
   // Pagination
   const pageCount = Math.ceil(tasks.length / pageSize);
@@ -222,7 +226,7 @@ export const TaskHistoryView: React.FC<{ onViewDetail?: (taskId: string) => void
         toast.success('任务记录已删除');
         selectedIds.delete(deleteTaskId);
         setSelectedIds(new Set(selectedIds));
-        mutate();
+        refreshHistory();
       } else {
         toast.error(result.message || '删除失败');
       }
@@ -248,7 +252,7 @@ export const TaskHistoryView: React.FC<{ onViewDetail?: (taskId: string) => void
       if (result.success) {
         toast.success(`已删除 ${result.deleted.length} 条记录`);
         setSelectedIds(new Set());
-        mutate();
+        refreshHistory();
       } else {
         toast.error(result.message || '批量删除失败');
       }
@@ -288,7 +292,7 @@ export const TaskHistoryView: React.FC<{ onViewDetail?: (taskId: string) => void
               删除 ({selectedIds.size})
             </Button>
           )}
-          <Button variant="outline" size="sm" onClick={() => mutate()} disabled={isLoading}>
+          <Button variant="outline" size="sm" onClick={refreshHistory} disabled={isLoading}>
             <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
             <span className="hidden lg:inline">刷新</span>
           </Button>
@@ -309,7 +313,7 @@ export const TaskHistoryView: React.FC<{ onViewDetail?: (taskId: string) => void
                 <TableHead className="w-12">
                   <div className="flex items-center justify-center">
                     <Checkbox
-                      checked={allSelectableSelected || (someSelected && 'indeterminate')}
+                      checked={allSelectableSelected || (someSelected ? 'indeterminate' : false)}
                       onCheckedChange={toggleSelectAll}
                       aria-label="Select all"
                     />

@@ -4,6 +4,9 @@ const nextConfig: NextConfig = {
   // Configure external packages for server-side only
   serverExternalPackages: ['exiftool-vendored', 'pino', 'rotating-file-stream'],
 
+  // Configure page extensions
+  pageExtensions: ['ts', 'tsx', 'js', 'jsx'],
+
   // Configure API route rewrites
   async rewrites() {
     return [

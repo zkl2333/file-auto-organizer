@@ -21,7 +21,7 @@ export class FileStatusService {
   private ensureTasksDir(): void {
     if (!fs.existsSync(this.tasksDir)) {
       fs.mkdirSync(this.tasksDir, { recursive: true });
-      systemLogger.info('创建 tasks 目录', { tasksDir: this.tasksDir });
+      systemLogger.info('创建 tasks 目录', { tasksDir: this.tasksDir } as any);
     }
   }
 

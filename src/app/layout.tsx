@@ -5,6 +5,8 @@ import { AppSidebar } from '@/components/app-sidebar';
 import { SiteHeader } from '@/components/site-header';
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
 import { Toaster } from 'sonner';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { NetworkStatusBanner } from '@/components/RealtimeStatusIndicator';
 import { initializeLogging } from '@/lib/log-init';
 import './globals.css';
 
@@ -55,12 +57,13 @@ export default function RootLayout({
           >
             <AppSidebar variant="inset" />
             <SidebarInset>
+              <NetworkStatusBanner />
               <SiteHeader />
               <div className="flex flex-1 flex-col">
                 <div className="flex flex-1 flex-col gap-2">
                   {/* 优化移动端 padding */}
                   <div className="@container/main container mx-auto flex flex-col gap-4 py-3 px-3 md:gap-6 md:py-6 md:px-6">
-                    {children}
+                    <ErrorBoundary>{children}</ErrorBoundary>
                   </div>
                 </div>
               </div>

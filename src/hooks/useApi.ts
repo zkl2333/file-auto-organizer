@@ -1,6 +1,7 @@
 import useSWR, { type SWRConfiguration } from 'swr';
 import {
   api,
+  ApiError,
   type Stats,
   type TaskStatus,
   type UsageStats,
@@ -13,6 +14,16 @@ const defaultConfig: SWRConfiguration = {
   revalidateOnFocus: false,
   revalidateOnReconnect: true,
   dedupingInterval: 2000,
+  errorRetryCount: 3,
+  errorRetryInterval: 5000,
+  onError: (error) => {
+    // 统一错误处理，可以在这里添加错误日志上报
+    if (error instanceof ApiError) {
+      console.error('API Error:', error.message, error.status, error.data);
+    } else {
+      console.error('SWR Error:', error);
+    }
+  },
 };
 
 // 用于自动刷新的配置

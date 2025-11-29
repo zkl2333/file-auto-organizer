@@ -4,6 +4,7 @@ import { usePathname } from 'next/navigation';
 import { Separator } from '@/components/ui/separator';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { ThemeToggle } from '@/components/theme-toggle';
+import { RealtimeStatusIndicator } from '@/components/RealtimeStatusIndicator';
 import type { ViewType } from './app-sidebar';
 
 const viewTitles: Record<ViewType, string> = {
@@ -26,7 +27,8 @@ export function SiteHeader() {
         <h1 className="text-base font-medium">
           {viewTitles[currentView as ViewType] || viewTitles.stats}
         </h1>
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-2">
+          <RealtimeStatusIndicator className="hidden sm:flex" />
           <ThemeToggle />
         </div>
       </div>
