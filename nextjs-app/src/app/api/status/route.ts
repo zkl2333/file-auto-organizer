@@ -1,61 +1,57 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { loadConfig } from '@/lib/config';
-import { TaskStatus } from '@/types';
+import { MainService } from '@/lib/services/main.service';
+import { systemLogger } from '@/lib/logger';
+import { getConfig } from '@/lib/config';
 
-// Global task state storage (in production, use database or Redis)
-let currentTask: TaskStatus | null = null;
-
-/**
- * Get task status API
- * GET /api/status
- */
+// GET /api/status - 获取任务运行状态
 export async function GET(request: NextRequest) {
   try {
-    const config = await loadConfig();
+    // 获取当前配置快照
+    const config = getConfig();
 
-    // Simulate task status check
-    const taskStatus = {
-      isRunning: currentTask?.status === 'running' || false,
-      currentTaskId: currentTask?.id || null,
-      lastRunTime: currentTask?.endTime ? new Date(currentTask.endTime).toISOString() : null,
-      lastRunStats: currentTask ? {
-        similarityMatched: 0, // This should come from actual task results
-        aiClassified: 0,
-        totalProcessed: currentTask.processedFiles,
-        duration: currentTask.endTime && currentTask.startTime
-          ? currentTask.endTime.getTime() - currentTask.startTime.getTime()
-          : 0,
-      } : null,
-      cronEnabled: config.cron.enabled || null,
-      lastTask: currentTask,
+    // 获取任务运行状态
+    const runningStatus = MainService.getRunningStatus();
+
+    // 构造状态响应
+    const statusResponse = {
+      isRunning: runningStatus.isRunning,
+      currentTaskId: runningStatus.taskId,
+      lastRunTime: null, // 后续可以实现历史记录功能
+      lastRunStats: null, // 后续可以实现历史记录功能
+      cronEnabled: config.CRON_ENABLED,
+      lastTask: runningStatus.isRunning
+        ? {
+            taskId: runningStatus.taskId,
+            startTime: new Date(runningStatus.startTime!).toISOString(),
+            endTime: '',
+            duration: Date.now() - runningStatus.startTime!,
+            aiCalls: 0,
+            tokensUsed: 0,
+            filesProcessed: 0,
+            similarityMatched: 0,
+            aiClassified: 0,
+            fileTypes: {},
+            status: 'running',
+            dryRun: runningStatus.dryRun,
+          }
+        : null,
     };
 
-    return NextResponse.json({
-      success: true,
-      data: taskStatus,
-    });
+    return NextResponse.json(statusResponse);
   } catch (error) {
-    console.error('Failed to get status:', error);
+    systemLogger.error(
+      {
+        error: error instanceof Error ? error.message : String(error),
+      },
+      '获取任务状态失败'
+    );
+
     return NextResponse.json(
       {
-        success: false,
-        error: error instanceof Error ? error.message : 'Failed to get status',
+        error: 'Internal Server Error',
+        message: error instanceof Error ? error.message : String(error),
       },
       { status: 500 }
     );
   }
-}
-
-/**
- * Set task status (internal use)
- */
-export function setTaskStatus(task: TaskStatus | null): void {
-  currentTask = task;
-}
-
-/**
- * Get current task status (internal use)
- */
-export function getTaskStatus(): TaskStatus | null {
-  return currentTask;
 }
