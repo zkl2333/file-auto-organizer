@@ -10,7 +10,7 @@ import { StatsService, TaskStatsRecord } from "./service/stats.service.js";
 import { LogModule, GLOBAL_LOG_PATHS, getTaskLogPath } from "./logger.js";
 import { systemLogger as logger } from "./logger.js";
 
-const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3001;
+const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3000;
 
 let mainServiceInstance: MainService | null = null;
 const statsService = new StatsService();
@@ -414,7 +414,7 @@ export async function startServer(mainService?: MainService) {
       try {
         const taskId = request.params.taskId;
         let task = statsService.getTaskRecord(taskId);
-        
+
         // 如果从 statsService 找不到任务，检查是否有运行中的任务
         if (!task) {
           const runningStatus = MainService.getRunningStatus();
@@ -448,7 +448,7 @@ export async function startServer(mainService?: MainService) {
             };
           }
         }
-        
+
         if (!task) {
           reply.status(404).send({
             error: "Not Found",
@@ -459,6 +459,47 @@ export async function startServer(mainService?: MainService) {
         reply.send(task);
       } catch (error) {
         logger.error({ err: error }, "获取任务详情失败");
+        reply.status(500).send({
+          error: "Internal Server Error",
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+  );
+
+  // GET /api/task/:taskId/files - 获取任务的文件列表
+  server.get<{
+    Params: { taskId: string };
+  }>(
+    "/api/task/:taskId/files",
+    async (request: FastifyRequest<{ Params: { taskId: string } }>, reply: FastifyReply) => {
+      try {
+        const taskId = request.params.taskId;
+
+        // 检查任务是否存在（包括运行中的任务）
+        const task = statsService.getTaskRecord(taskId);
+        const runningStatus = MainService.getRunningStatus();
+        const isRunningTask = runningStatus.isRunning && runningStatus.taskId === taskId;
+
+        if (!task && !isRunningTask) {
+          reply.status(404).send({
+            error: "Not Found",
+            message: `任务 ${taskId} 不存在`,
+          });
+          return;
+        }
+
+        // 获取 MainService 实例并获取文件列表
+        const service = mainServiceInstance || new MainService();
+        const files = await service.getTaskFiles(taskId);
+
+        reply.send({
+          taskId,
+          files,
+          totalFiles: files.length,
+        });
+      } catch (error) {
+        logger.error({ err: error }, "获取任务文件列表失败");
         reply.status(500).send({
           error: "Internal Server Error",
           message: error instanceof Error ? error.message : String(error),

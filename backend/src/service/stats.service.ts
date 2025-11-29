@@ -118,6 +118,11 @@ export class StatsService {
    * 删除任务日志目录
    */
   private deleteTaskLogDir(taskId: string): void {
+    // 验证 taskId 是否为有效字符串
+    if (!taskId || typeof taskId !== "string" || taskId.trim() === "") {
+      systemLogger.warn({ taskId }, "无效的任务ID，跳过删除日志目录");
+      return;
+    }
     const taskLogDir = path.join(config.LOG_DIR, "tasks", taskId);
     if (fs.existsSync(taskLogDir)) {
       try {
@@ -153,7 +158,12 @@ export class StatsService {
     const deleted: string[] = [];
     const notFound: string[] = [];
 
-    for (const taskId of taskIds) {
+    // 过滤掉无效的 taskId（null、undefined、空字符串）
+    const validTaskIds = taskIds.filter(
+      (id) => id != null && typeof id === "string" && id.trim() !== ""
+    );
+
+    for (const taskId of validTaskIds) {
       const index = records.findIndex(r => r.taskId === taskId);
       if (index !== -1) {
         records.splice(index, 1);

@@ -58,6 +58,7 @@ import {
 import { toast } from "sonner";
 
 const formatDuration = (ms: number): string => {
+  if (!ms || ms < 0) return 'N/A';
   if (ms < 1000) return `${ms}ms`;
   const seconds = Math.floor(ms / 1000);
   if (seconds < 60) return `${seconds}s`;
@@ -67,6 +68,7 @@ const formatDuration = (ms: number): string => {
 };
 
 const formatTime = (isoTime: string): string => {
+  if (!isoTime) return 'N/A';
   try {
     const date = new Date(isoTime);
     return date.toLocaleString("zh-CN", {
@@ -79,7 +81,7 @@ const formatTime = (isoTime: string): string => {
       hour12: false,
     });
   } catch {
-    return isoTime;
+    return isoTime || 'N/A';
   }
 };
 
@@ -369,23 +371,23 @@ export const TaskHistoryView: React.FC<{ onViewDetail?: (taskId: string) => void
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1">
                         <FileText className="w-3 h-3 text-muted-foreground" />
-                        <span className="font-medium">{task.filesProcessed}</span>
+                        <span className="font-medium">{task.filesProcessed || 0}</span>
                       </div>
                     </TableCell>
                     <TableCell className="text-right hidden md:table-cell">
                       <span className="text-blue-600 dark:text-blue-400 font-medium">
-                        {task.similarityMatched}
+                        {task.similarityMatched || 0}
                       </span>
                     </TableCell>
                     <TableCell className="text-right hidden md:table-cell">
                       <span className="text-purple-600 dark:text-purple-400 font-medium">
-                        {task.aiClassified}
+                        {task.aiClassified || 0}
                       </span>
                     </TableCell>
                     <TableCell className="text-right hidden lg:table-cell">
                       <div className="flex items-center justify-end gap-1">
                         <Zap className="w-3 h-3 text-orange-500" />
-                        <span className="text-sm">{task.tokensUsed.toLocaleString()}</span>
+                        <span className="text-sm">{(task.tokensUsed || 0).toLocaleString()}</span>
                       </div>
                     </TableCell>
                     <TableCell className="text-center">
@@ -520,7 +522,7 @@ export const TaskHistoryView: React.FC<{ onViewDetail?: (taskId: string) => void
               <div className="grid grid-cols-2 gap-2 text-sm">
                 <div>
                   <div className="text-muted-foreground text-xs">任务ID</div>
-                  <div className="font-mono text-xs">{task.taskId.slice(-12)}</div>
+                  <div className="font-mono text-xs">{task.taskId?.slice(-12) || 'N/A'}</div>
                 </div>
                 <div>
                   <div className="text-muted-foreground text-xs">耗时</div>
@@ -531,13 +533,13 @@ export const TaskHistoryView: React.FC<{ onViewDetail?: (taskId: string) => void
                 </div>
                 <div>
                   <div className="text-muted-foreground text-xs">处理文件</div>
-                  <div className="font-medium">{task.filesProcessed}</div>
+                  <div className="font-medium">{task.filesProcessed || 0}</div>
                 </div>
                 <div>
                   <div className="text-muted-foreground text-xs">Token</div>
                   <div className="flex items-center gap-1">
                     <Zap className="w-3 h-3 text-orange-500" />
-                    <span>{task.tokensUsed.toLocaleString()}</span>
+                    <span>{(task.tokensUsed || 0).toLocaleString()}</span>
                   </div>
                 </div>
               </div>
@@ -545,11 +547,11 @@ export const TaskHistoryView: React.FC<{ onViewDetail?: (taskId: string) => void
               <div className="flex items-center gap-4 text-sm border-t pt-2">
                 <div className="flex items-center gap-1">
                   <span className="text-muted-foreground">相似度:</span>
-                  <span className="text-blue-600 font-medium">{task.similarityMatched}</span>
+                  <span className="text-blue-600 font-medium">{task.similarityMatched || 0}</span>
                 </div>
                 <div className="flex items-center gap-1">
                   <span className="text-muted-foreground">AI:</span>
-                  <span className="text-purple-600 font-medium">{task.aiClassified}</span>
+                  <span className="text-purple-600 font-medium">{task.aiClassified || 0}</span>
                 </div>
               </div>
 

@@ -25,6 +25,8 @@ export class AIClassificationService {
     classifications: Array<{ fileName: string; path: string; reasoning?: string }>;
     tokensUsed: number;
   }> {
+    const startTime = Date.now();
+
     try {
       if (files.length === 0) return { classifications: [], tokensUsed: 0 };
 
@@ -42,7 +44,19 @@ export class AIClassificationService {
           : "暂无，需要创建新目录"
       }\n待分类文件列表:\n${filesList}`;
 
-      aiLogger.info({ files: files.length, dirs: knownDirs.length }, "AI 分类请求");
+      // 记录请求详情，包括前3个文件示例
+      const filesSample = files.slice(0, 3).map(f => f.fileName);
+      const hasMore = files.length > 3;
+      aiLogger.info(
+        {
+          totalFiles: files.length,
+          totalDirs: knownDirs.length,
+          filesSample,
+          hasMore,
+          model: config.OPENAI_MODEL
+        },
+        `开始AI分类: ${files.length}个文件, ${knownDirs.length}个已有目录`
+      );
 
       const res = await this.openai.chat.completions.create({
         model: config.OPENAI_MODEL,
@@ -106,14 +120,37 @@ export class AIClassificationService {
             const result = JSON.parse(toolCall.function.arguments);
             const classifications = result.classifications || [];
             const tokensUsed = usage?.total_tokens || 0;
+            const elapsedMs = Date.now() - startTime;
+
+            // 统计新旧目录
+            const uniqueDirs = new Set(classifications.map((c: any) => c.directory_path));
+            const newDirs = Array.from(uniqueDirs).filter(dir => !knownDirs.includes(dir as string));
+
+            // 选择前3个分类结果作为示例
+            const classificationsSample = classifications.slice(0, 3).map((c: any) => ({
+              file: c.file_name,
+              dir: c.directory_path,
+              reason: c.reasoning?.substring(0, 50) + (c.reasoning?.length > 50 ? '...' : '')
+            }));
 
             aiLogger.info(
-              { classified: classifications.length, tokens: tokensUsed },
-              "AI 分类完成"
+              {
+                classified: classifications.length,
+                tokens: tokensUsed,
+                promptTokens: usage?.prompt_tokens || 0,
+                completionTokens: usage?.completion_tokens || 0,
+                elapsedMs,
+                avgMsPerFile: Math.round(elapsedMs / files.length),
+                uniqueDirs: uniqueDirs.size,
+                newDirs: newDirs.length,
+                existingDirs: uniqueDirs.size - newDirs.length,
+                sample: classificationsSample
+              },
+              `AI分类完成: ${classifications.length}个文件分类到${uniqueDirs.size}个目录 (耗时${elapsedMs}ms, ${tokensUsed} tokens)`
             );
 
-            // 仅在 debug 级别记录详细分类结果
-            aiLogger.debug({ classifications }, "分类详情");
+            // 仅在 debug 级别记录完整分类结果
+            aiLogger.debug({ classifications }, "完整分类结果");
 
             return {
               classifications: classifications.map((item: any) => ({
@@ -124,16 +161,47 @@ export class AIClassificationService {
               tokensUsed,
             };
           } catch (parseError) {
-            aiLogger.error({ err: parseError }, "解析分类结果失败");
+            const elapsedMs = Date.now() - startTime;
+            aiLogger.error(
+              {
+                err: parseError,
+                elapsedMs,
+                rawArguments: toolCall.function.arguments?.substring(0, 200)
+              },
+              `解析分类结果失败 (耗时${elapsedMs}ms)`
+            );
             throw new Error(`批量分类解析失败: ${parseError}`);
           }
         }
       }
 
-      aiLogger.error("AI 分类失败：未返回有效结果");
+      const elapsedMs = Date.now() - startTime;
+      aiLogger.error(
+        {
+          elapsedMs,
+          hasChoice: !!choice,
+          hasToolCalls: !!choice?.message?.tool_calls,
+          toolCallsCount: choice?.message?.tool_calls?.length || 0
+        },
+        `AI分类失败：未返回有效结果 (耗时${elapsedMs}ms)`
+      );
       throw new Error("AI批量分类失败：未返回有效结果");
     } catch (error) {
-      aiLogger.error({ err: error }, "批量分类失败");
+      const elapsedMs = Date.now() - startTime;
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const isRateLimitError = errorMessage.includes('rate_limit') || errorMessage.includes('429');
+      const isAPIError = errorMessage.includes('API') || errorMessage.includes('timeout');
+
+      aiLogger.error(
+        {
+          err: error,
+          errorType: isRateLimitError ? 'rate_limit' : isAPIError ? 'api_error' : 'unknown',
+          filesCount: files.length,
+          elapsedMs,
+          model: config.OPENAI_MODEL
+        },
+        `批量分类失败: ${errorMessage} (耗时${elapsedMs}ms)`
+      );
       throw error;
     }
   }

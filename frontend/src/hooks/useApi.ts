@@ -1,5 +1,5 @@
 import useSWR, { type SWRConfiguration } from 'swr';
-import { api, type Stats, type TaskStatus, type UsageStats, type TaskRecord } from '../api';
+import { api, type Stats, type TaskStatus, type UsageStats, type TaskRecord, type TaskFileList } from '../api';
 
 // SWR 配置
 const defaultConfig: SWRConfiguration = {
@@ -72,6 +72,40 @@ export function useTaskLogs(taskId: string | null, type: string = 'main', limit:
     taskId ? `/api/task/${taskId}/logs?type=${type}&limit=${limit}` : null,
     taskId ? () => api.getTaskLogs(taskId, type, limit) : null,
     { ...defaultConfig, ...config }
+  );
+}
+
+/**
+ * 获取任务文件列表
+ */
+export function useTaskFiles(taskId: string | null, config?: SWRConfiguration) {
+  return useSWR<TaskFileList>(
+    taskId ? `/api/task/${taskId}/files` : null,
+    taskId ? () => api.getTaskFiles(taskId) : null,
+    { ...defaultConfig, ...config }
+  );
+}
+
+/**
+ * 实时获取任务文件列表（自动轮询）
+ * @param taskId 任务ID
+ * @param interval 轮询间隔（毫秒），默认2000ms（2秒）
+ * @param enabled 是否启用轮询，默认true
+ */
+export function useTaskFilesRealtime(
+  taskId: string | null,
+  interval: number = 2000,
+  enabled: boolean = true
+) {
+  return useSWR<TaskFileList>(
+    taskId ? `/api/task/${taskId}/files` : null,
+    taskId ? () => api.getTaskFiles(taskId) : null,
+    {
+      ...defaultConfig,
+      refreshInterval: enabled ? interval : 0,  // 启用时自动轮询
+      revalidateOnFocus: true,  // 窗口获得焦点时重新验证
+      revalidateOnReconnect: true,  // 重新连接时重新验证
+    }
   );
 }
 

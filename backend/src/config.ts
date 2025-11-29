@@ -21,6 +21,7 @@ interface ConfigFile {
     level: string;
     dir: string;
   };
+  timezone: string;
   scan: {
     max_depth: number;
     similarity_threshold: number;
@@ -36,6 +37,7 @@ interface ConfigFile {
 
 // 默认配置
 const defaultConfig: ConfigFile = {
+  timezone: "Asia/Shanghai",
   openai: {
     api_key: "",
     model: "gpt-5-nano",
@@ -67,8 +69,64 @@ const defaultConfig: ConfigFile = {
 };
 
 /**
- * 查找配置文件
- * 优先级：环境变量 > cwd/config.yaml (Docker) > cwd/../config.yaml (本地开发)
+ * 创建默认配置文件
+ */
+function createDefaultConfigFile(targetPath: string): void {
+  try {
+    const exampleConfigPath = path.resolve(process.cwd(), "..", "config.yaml.example");
+    let defaultContent: string;
+
+    if (fs.existsSync(exampleConfigPath)) {
+      // 如果存在示例文件，使用其内容
+      defaultContent = fs.readFileSync(exampleConfigPath, "utf8");
+    } else {
+      // 否则生成基本的配置内容
+      defaultContent = `# File Auto Organizer 配置文件
+# 首次启动自动创建，请根据需要修改配置
+
+openai:
+  api_key: ""  # 必填：OpenAI API密钥
+  model: "gpt-4-turbo" # AI模型选择
+  base_url: "" # 可选：兼容其他API服务
+
+directories:
+  root_dir: "./分类库"              # 分类后文件存储位置
+  incoming_dir: "./待分类"          # 待分类文件位置
+
+cron:
+  enabled: true                        # 是否启用定时任务
+  schedule: "0 * * * *"                # 定时执行规则（每小时）
+
+logging:
+  level: "info"                        # 日志级别: debug, info, warn, error
+  dir: "./logs"                       # 日志文件目录
+
+timezone: "Asia/Shanghai"              # 时区设置
+
+scan:
+  max_depth: 3                         # 目录扫描最大深度
+  similarity_threshold: 0.65           # 文件相似度阈值
+
+ai:
+  batch_size: 5                        # AI批量处理文件数量
+
+file_operations:
+  max_retries: 3                       # 文件操作最大重试次数
+  retry_delay_base: 1000               # 重试延迟基数（毫秒）
+`;
+    }
+
+    fs.writeFileSync(targetPath, defaultContent, "utf8");
+    console.log(`✅ 已创建默认配置文件: ${targetPath}`);
+  } catch (error) {
+    console.error(`❌ 创建配置文件失败: ${error}`);
+    throw error;
+  }
+}
+
+/**
+ * 查找或创建配置文件
+ * 优先级：环境变量 > cwd/config.yaml (Docker) > cwd/../config.yaml (本地开发) > 自动创建
  */
 export function findConfigFile(): string | null {
   // 1. 环境变量指定
@@ -76,16 +134,19 @@ export function findConfigFile(): string | null {
     const envPath = path.resolve(process.env.CONFIG_PATH);
     if (fs.existsSync(envPath)) return envPath;
   }
-  
+
   // 2. 当前工作目录 (Docker: /app/config.yaml)
   const cwdPath = path.resolve(process.cwd(), "config.yaml");
   if (fs.existsSync(cwdPath)) return cwdPath;
-  
+
   // 3. 父目录 (本地开发: backend/../config.yaml)
   const parentPath = path.resolve(process.cwd(), "..", "config.yaml");
   if (fs.existsSync(parentPath)) return parentPath;
-  
-  return null;
+
+  // 4. 如果都不存在，在当前工作目录创建默认配置文件
+  console.log("🔧 配置文件不存在，正在创建默认配置文件...");
+  createDefaultConfigFile(cwdPath);
+  return cwdPath;
 }
 
 // 配置文件路径（用于解析相对路径）
@@ -152,6 +213,10 @@ function mergeConfig(defaultConfig: ConfigFile, loadedConfig: Partial<ConfigFile
   if (loadedConfig.file_operations) {
     merged.file_operations = { ...merged.file_operations, ...loadedConfig.file_operations };
   }
+  // 时区配置：优先使用配置文件中的值
+  if (loadedConfig.timezone) {
+    merged.timezone = loadedConfig.timezone;
+  }
 
   return merged;
 }
@@ -187,6 +252,7 @@ export function getConfigSnapshot() {
     AI_BATCH_SIZE: freshConfig.ai.batch_size,
     FILE_MAX_RETRIES: freshConfig.file_operations.max_retries,
     FILE_RETRY_DELAY_BASE: freshConfig.file_operations.retry_delay_base,
+    TIMEZONE: freshConfig.timezone, // 时区配置：配置文件优先，其次使用默认值
   } as const;
 }
 
@@ -210,4 +276,5 @@ export const config = {
   AI_BATCH_SIZE: loadedConfig.ai.batch_size,
   FILE_MAX_RETRIES: loadedConfig.file_operations.max_retries,
   FILE_RETRY_DELAY_BASE: loadedConfig.file_operations.retry_delay_base,
+  TIMEZONE: loadedConfig.timezone, // 时区配置：配置文件优先，其次使用默认值
 } as const;

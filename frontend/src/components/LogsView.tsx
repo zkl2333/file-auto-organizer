@@ -5,36 +5,9 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-import { RefreshCw, Download, Search, Copy, ChevronDown, ChevronRight, ArrowDown } from 'lucide-react';
+import { RefreshCw, Download, Search, ArrowDown } from 'lucide-react';
 import { toast } from 'sonner';
-
-// 日志级别映射
-const LOG_LEVELS: Record<number, { label: string; color: string; bgColor: string }> = {
-  10: { label: 'TRACE', color: 'text-gray-500', bgColor: 'bg-gray-100' },
-  20: { label: 'DEBUG', color: 'text-gray-600', bgColor: 'bg-gray-100' },
-  30: { label: 'INFO', color: 'text-blue-600', bgColor: 'bg-blue-50' },
-  40: { label: 'WARN', color: 'text-yellow-600', bgColor: 'bg-yellow-50' },
-  50: { label: 'ERROR', color: 'text-red-600', bgColor: 'bg-red-50' },
-  60: { label: 'FATAL', color: 'text-red-800', bgColor: 'bg-red-100' },
-};
-
-// 格式化时间
-const formatTime = (isoTime: string): string => {
-  try {
-    const date = new Date(isoTime);
-    return date.toLocaleString('zh-CN', {
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      hour12: false,
-    });
-  } catch {
-    return isoTime;
-  }
-};
+import { LogRenderer } from './LogRenderer';
 
 // 日志类型配置
 const LOG_TYPES = [
@@ -161,11 +134,6 @@ export const LogsView: React.FC = () => {
     setExpandedLogs(newExpanded);
   };
 
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    toast.success('已复制到剪贴板');
-  };
-
   const downloadLogs = () => {
     const blob = new Blob([logs.join('\n')], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
@@ -175,109 +143,6 @@ export const LogsView: React.FC = () => {
     a.click();
     URL.revokeObjectURL(url);
     toast.success('日志已下载');
-  };
-
-  const renderLogLine = (log: string, index: number) => {
-    try {
-      const logObj = JSON.parse(log);
-      const { time, level, msg, module, ...rest } = logObj;
-
-      const levelInfo = LOG_LEVELS[level] || { label: `${level}`, color: 'text-gray-600', bgColor: 'bg-gray-50' };
-      const formattedTime = time ? formatTime(time) : '';
-      const isExpanded = expandedLogs.has(index);
-      const hasExtraData = Object.keys(rest).length > 0;
-
-      // 提取关键信息用于特殊显示
-      const { file, from, to, method, reasoning, similarity, score, similar, ...otherData } = rest;
-
-      return (
-        <div key={index} className={`mb-2 p-3 rounded-lg border ${levelInfo.bgColor} hover:shadow-md transition-shadow`}>
-          <div className="flex items-start gap-2">
-            {hasExtraData && (
-              <button
-                onClick={() => toggleExpand(index)}
-                className="mt-1 text-gray-400 hover:text-gray-600 shrink-0"
-              >
-                {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-              </button>
-            )}
-            <div className="flex-1 min-w-0">
-              <div className="flex flex-wrap items-center gap-2 text-sm">
-                <span className="text-gray-500 font-mono text-xs">{formattedTime}</span>
-                <Badge variant="outline" className={levelInfo.color}>{levelInfo.label}</Badge>
-                {module && <Badge variant="secondary" className="text-xs">{module}</Badge>}
-                {method && <Badge variant="default" className="text-xs bg-purple-100 text-purple-700">{method}</Badge>}
-              </div>
-
-              <div className="mt-1 text-sm text-gray-800 font-medium">
-                {msg}
-              </div>
-
-              {/* 显示关键字段 */}
-              {(file || from || to || similarity !== undefined || score !== undefined || similar) && (
-                <div className="mt-2 space-y-1 text-xs">
-                  {file && (
-                    <div className="flex gap-2">
-                      <span className="text-gray-500 font-semibold">文件:</span>
-                      <span className="text-blue-600 font-mono">{file}</span>
-                    </div>
-                  )}
-                  {from && (
-                    <div className="flex gap-2">
-                      <span className="text-gray-500 font-semibold">源:</span>
-                      <span className="text-gray-700 font-mono truncate" title={from as string}>{from as string}</span>
-                    </div>
-                  )}
-                  {to && (
-                    <div className="flex gap-2">
-                      <span className="text-gray-500 font-semibold">目标:</span>
-                      <span className="text-green-600 font-mono truncate" title={to as string}>{to as string}</span>
-                    </div>
-                  )}
-                  {(similarity !== undefined || score !== undefined) && (
-                    <div className="flex gap-2">
-                      <span className="text-gray-500 font-semibold">相似度:</span>
-                      <span className="text-orange-600 font-semibold">
-                        {(similarity || score) ? Number(similarity || score).toFixed(4) : 'N/A'}
-                      </span>
-                      {similar && <span className="text-gray-500">← {similar as string}</span>}
-                    </div>
-                  )}
-                  {reasoning && (
-                    <div className="flex gap-2">
-                      <span className="text-gray-500 font-semibold">理由:</span>
-                      <span className="text-gray-700 italic">{reasoning as string}</span>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* 展开显示完整数据 */}
-              {isExpanded && Object.keys(otherData).length > 0 && (
-                <div className="mt-2 p-2 bg-gray-800 text-gray-100 rounded text-xs font-mono overflow-x-auto">
-                  <pre>{JSON.stringify(otherData, null, 2)}</pre>
-                </div>
-              )}
-            </div>
-
-            <button
-              onClick={() => copyToClipboard(log)}
-              className="shrink-0 text-gray-400 hover:text-gray-600 p-1"
-              title="复制日志"
-            >
-              <Copy size={14} />
-            </button>
-          </div>
-        </div>
-      );
-    } catch {
-      // 无法解析的日志，使用原始显示
-      return (
-        <div key={index} className="mb-2 p-2 bg-gray-50 rounded border text-sm text-gray-700 font-mono">
-          {log}
-        </div>
-      );
-    }
   };
 
   const currentLogType = LOG_TYPES.find(t => t.value === type);
@@ -387,7 +252,17 @@ export const LogsView: React.FC = () => {
                 </div>
               ) : (
                 <>
-                  {filteredLogs.map(renderLogLine)}
+                  {filteredLogs.map((log, index) => (
+                    <div key={index} className="mb-2">
+                      <LogRenderer
+                        log={log}
+                        index={index}
+                        expandedLogs={expandedLogs}
+                        onToggleExpand={toggleExpand}
+                        showCopyButton={true}
+                      />
+                    </div>
+                  ))}
                   <div ref={logsEndRef} />
                 </>
               )}

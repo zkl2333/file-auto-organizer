@@ -100,6 +100,44 @@ export interface UsageStats {
   }>;
 }
 
+// 文件处理状态类型
+export type FileProcessStatus =
+  | 'pending'              // 待处理（扫描完成）
+  | 'similarity_matching'  // 相似度匹配中
+  | 'similarity_matched'   // 相似度匹配完成
+  | 'ai_classifying'       // AI分类中
+  | 'ai_classified'        // AI分类完成
+  | 'moving'               // 移动中
+  | 'success'              // 处理成功
+  | 'failed'               // 处理失败
+  | 'skipped';             // 跳过
+
+// 文件处理阶段
+export type FileProcessStage = 'scan' | 'similarity' | 'ai' | 'move' | 'complete';
+
+export interface ProcessedFile {
+  name: string;
+  originalPath: string;
+  targetPath?: string;
+  type: string;
+  size: string;
+  status: FileProcessStatus;
+  error?: string;
+  method?: 'similarity' | 'ai' | 'manual';
+  score?: number;
+  reasoning?: string;  // AI分类原因
+  timestamp: number;
+  // 新增字段
+  processStage?: FileProcessStage;  // 当前处理阶段
+  progress?: number;  // 处理进度 0-100
+}
+
+export interface TaskFileList {
+  taskId: string;
+  files: ProcessedFile[];
+  totalFiles: number;
+}
+
 export interface TaskRecord {
   taskId: string;
   timestamp: string;
@@ -197,6 +235,11 @@ export const api = {
 
   getTaskLogs: async (taskId: string, type: string = 'main', limit: number = 200): Promise<{ logs: string[] }> => {
     const res = await fetch(`/api/task/${taskId}/logs?type=${type}&limit=${limit}`);
+    return res.json();
+  },
+
+  getTaskFiles: async (taskId: string): Promise<TaskFileList> => {
+    const res = await fetch(`/api/task/${taskId}/files`);
     return res.json();
   },
 

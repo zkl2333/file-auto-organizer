@@ -119,5 +119,6 @@ $RECYCLE.BIN/
 *.rar
 
 # 本地测试文件
+data/
 test-output/
 *.test.local.*
