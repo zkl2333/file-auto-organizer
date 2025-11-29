@@ -1,8 +1,10 @@
 services:
-  file-classifier:
-    image: docker.io/zkl2333/file-auto-organizer:latest
-    container_name: file-classifier
+  file-auto-organizer:
+    build: .
+    container_name: file-auto-organizer
     restart: unless-stopped
+    ports:
+      - '3000:3000'
     volumes:
       # 宿主机下载目录挂载到容器内 /data
       - ~/Downloads:/data:rw
@@ -11,3 +13,6 @@ services:
       # 配置文件挂载
       - ./config.yaml:/app/config.yaml:ro
     working_dir: /app
+    environment:
+      - NODE_ENV=production
+      - PORT=3000

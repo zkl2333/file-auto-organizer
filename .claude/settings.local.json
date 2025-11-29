@@ -3,14 +3,14 @@
     "allow": [
       "Bash(cat:*)",
       "Bash(npm run build:*)",
-      "mcp__sequential-thinking__sequentialthinking",
       "Bash(curl:*)",
       "Bash(tree:*)",
       "Bash(mkdir:*)",
       "Bash(npm test)",
       "mcp__context7__resolve-library-id",
       "mcp__context7__get-library-docs",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "Bash(git add:*)"
     ],
     "deny": [],
     "ask": []
