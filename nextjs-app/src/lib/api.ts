@@ -6,7 +6,7 @@ import {
   DashboardStats,
   TaskConfig,
   FileProcessStatus,
-  RouteParams
+  RouteParams,
 } from '@/types';
 
 // API 基础配置
@@ -47,6 +47,47 @@ async function apiRequest<T = any>(
 }
 
 /**
+ * 通用分页 API 请求函数
+ */
+async function paginatedRequest<T = any>(
+  endpoint: string,
+  options: RequestInit = {}
+): Promise<PaginatedResponse<T>> {
+  try {
+    const url = `${API_BASE_URL}${endpoint}`;
+
+    const response = await fetch(url, {
+      headers: {
+        'Content-Type': 'application/json',
+        ...options.headers,
+      },
+      ...options,
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || `HTTP error! status: ${response.status}`);
+    }
+
+    return data;
+  } catch (error) {
+    console.error('API request failed:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+      data: [],
+      pagination: {
+        page: 1,
+        limit: 20,
+        total: 0,
+        totalPages: 0,
+      },
+    };
+  }
+}
+
+/**
  * 统计数据 API
  */
 export const statsApi = {
@@ -70,13 +111,15 @@ export const taskApi = {
   /**
    * 获取任务状态
    */
-  getStatus: (): Promise<ApiResponse<TaskStatus>> =>
-    apiRequest<TaskStatus>('/api/status'),
+  getStatus: (): Promise<ApiResponse<TaskStatus>> => apiRequest<TaskStatus>('/api/status'),
 
   /**
    * 创建新任务
    */
-  createTask: (config: Partial<TaskConfig>, dryRun: boolean = false): Promise<ApiResponse<{ taskId: string }>> =>
+  createTask: (
+    config: Partial<TaskConfig>,
+    dryRun: boolean = false
+  ): Promise<ApiResponse<{ taskId: string }>> =>
     apiRequest(`/api/tasks?dryRun=${dryRun}`, {
       method: 'POST',
       body: JSON.stringify(config),
@@ -91,14 +134,18 @@ export const taskApi = {
   /**
    * 获取任务文件列表
    */
-  getTaskFiles: (taskId: string, page: number = 1, limit: number = 20): Promise<PaginatedResponse<FileProcessStatus>> =>
-    apiRequest<FileProcessStatus[]>(`/api/tasks/${taskId}/files?page=${page}&limit=${limit}`),
+  getTaskFiles: (
+    taskId: string,
+    page: number = 1,
+    limit: number = 20
+  ): Promise<PaginatedResponse<FileProcessStatus>> =>
+    paginatedRequest<FileProcessStatus>(`/api/tasks/${taskId}/files?page=${page}&limit=${limit}`),
 
   /**
    * 获取任务历史记录
    */
   getTaskHistory: (page: number = 1, limit: number = 20): Promise<PaginatedResponse<TaskStatus>> =>
-    apiRequest<TaskStatus[]>(`/api/tasks/history?page=${page}&limit=${limit}`),
+    paginatedRequest<TaskStatus>(`/api/tasks/history?page=${page}&limit=${limit}`),
 
   /**
    * 删除任务
@@ -109,7 +156,9 @@ export const taskApi = {
   /**
    * 批量删除任务
    */
-  deleteTasks: (taskIds: string[]): Promise<ApiResponse<{ deleted: string[]; notFound: string[] }>> =>
+  deleteTasks: (
+    taskIds: string[]
+  ): Promise<ApiResponse<{ deleted: string[]; notFound: string[] }>> =>
     apiRequest('/api/tasks', {
       method: 'DELETE',
       body: JSON.stringify({ taskIds }),
@@ -141,13 +190,15 @@ export const fileApi = {
   /**
    * 获取文件列表
    */
-  getFiles: (params: {
-    status?: string;
-    category?: string;
-    page?: number;
-    limit?: number;
-    search?: string;
-  } = {}): Promise<PaginatedResponse<FileProcessStatus>> => {
+  getFiles: (
+    params: {
+      status?: string;
+      category?: string;
+      page?: number;
+      limit?: number;
+      search?: string;
+    } = {}
+  ): Promise<PaginatedResponse<FileProcessStatus>> => {
     const searchParams = new URLSearchParams();
     Object.entries(params).forEach(([key, value]) => {
       if (value !== undefined) {
@@ -156,7 +207,7 @@ export const fileApi = {
     });
 
     const query = searchParams.toString();
-    return apiRequest<FileProcessStatus[]>(`/api/files${query ? `?${query}` : ''}`);
+    return paginatedRequest<FileProcessStatus>(`/api/files${query ? `?${query}` : ''}`);
   },
 
   /**
@@ -206,8 +257,8 @@ export const fileApi = {
   /**
    * 重新分析文件
    */
-  reanalyzeFile: (fileId: string): Promise<ApiResponse<AIAnalysisResult>> =>
-    apiRequest<AIAnalysisResult>(`/api/files/${fileId}/analyze`, { method: 'POST' }),
+  reanalyzeFile: (fileId: string): Promise<ApiResponse<any>> =>
+    apiRequest<any>(`/api/files/${fileId}/analyze`, { method: 'POST' }),
 };
 
 /**
@@ -217,8 +268,7 @@ export const configApi = {
   /**
    * 获取配置
    */
-  getConfig: (): Promise<ApiResponse<TaskConfig>> =>
-    apiRequest<TaskConfig>('/api/config'),
+  getConfig: (): Promise<ApiResponse<TaskConfig>> => apiRequest<TaskConfig>('/api/config'),
 
   /**
    * 更新配置
@@ -232,7 +282,9 @@ export const configApi = {
   /**
    * 验证配置
    */
-  validateConfig: (config: Partial<TaskConfig>): Promise<ApiResponse<{ valid: boolean; errors: string[] }>> =>
+  validateConfig: (
+    config: Partial<TaskConfig>
+  ): Promise<ApiResponse<{ valid: boolean; errors: string[] }>> =>
     apiRequest<{ valid: boolean; errors: string[] }>('/api/config/validate', {
       method: 'POST',
       body: JSON.stringify(config),
@@ -252,15 +304,17 @@ export const logApi = {
   /**
    * 获取日志列表
    */
-  getLogs: (params: {
-    level?: string;
-    taskId?: string;
-    fileId?: string;
-    limit?: number;
-    offset?: number;
-    startTime?: string;
-    endTime?: string;
-  } = {}): Promise<ApiResponse<{ logs: LogEntry[]; total: number }>> => {
+  getLogs: (
+    params: {
+      level?: string;
+      taskId?: string;
+      fileId?: string;
+      limit?: number;
+      offset?: number;
+      startTime?: string;
+      endTime?: string;
+    } = {}
+  ): Promise<ApiResponse<{ logs: LogEntry[]; total: number }>> => {
     const searchParams = new URLSearchParams();
     Object.entries(params).forEach(([key, value]) => {
       if (value !== undefined) {
@@ -295,13 +349,14 @@ export const systemApi = {
   /**
    * 获取系统信息
    */
-  getSystemInfo: (): Promise<ApiResponse<{
-    version: string;
-    uptime: number;
-    memory: NodeJS.MemoryUsage;
-    disk: { free: number; total: number };
-  }>> =>
-    apiRequest('/api/system/info'),
+  getSystemInfo: (): Promise<
+    ApiResponse<{
+      version: string;
+      uptime: number;
+      memory: NodeJS.MemoryUsage;
+      disk: { free: number; total: number };
+    }>
+  > => apiRequest('/api/system/info'),
 
   /**
    * 健康检查
@@ -312,8 +367,7 @@ export const systemApi = {
   /**
    * 触发定时任务
    */
-  triggerCronTask: (): Promise<ApiResponse> =>
-    apiRequest('/api/cron/trigger', { method: 'POST' }),
+  triggerCronTask: (): Promise<ApiResponse> => apiRequest('/api/cron/trigger', { method: 'POST' }),
 };
 
 /**
@@ -339,7 +393,7 @@ export class WebSocketManager {
         const { type, data } = JSON.parse(event.data);
         const listeners = this.listeners.get(type);
         if (listeners) {
-          listeners.forEach(callback => callback(data));
+          listeners.forEach((callback) => callback(data));
         }
       } catch (error) {
         console.error('Failed to parse WebSocket message:', error);
