@@ -46,8 +46,9 @@
 - [x] 修复 React Router 迁移问题和组件依赖
 - [x] 迁移 Sidebar Layout 架构到 Next.js
 - [x] 统一主题样式配置（Tailwind CSS v4 + shadcn/ui）
-- [x] 迁移 /stats 页面（Dashboard 统计）
+- [x] 迁移完整 /stats 页面（动态路由 + 统计图表）
 - [x] 迁移 /config 页面（配置管理）
+- [x] 修复 API 数据结构兼容性问题
 
 ### 🚧 进行中
 
@@ -59,6 +60,8 @@
 
 - tw-animate-css 包需要正确安装和配置
 - 多个 lockfile 导致 Turbopack 警告（可忽略）
+- API 数据结构不匹配：useStats 返回完整 API 响应而非 data 字段
+- StatsView 调用 /api/usage-stats 端点不存在（返回 404）
 
 ### 📋 待完成
 
@@ -115,6 +118,14 @@ Next.js 开发服务器正在运行
 1. **/logs** - 日志查看页面
 2. **/trigger** - 手动触发任务页面
 3. **/task-history** - 任务历史记录页面
+
+### ⏯ 当前工作重点
+
+根据用户要求继续任务，下一步优先级：
+
+1. 修复 StatsView 中的 usage-stats API 调用错误
+2. 按顺序迁移剩余页面：logs → trigger → task-history
+3. 确保每个页面完全复制原功能后再修改错误
 
 ### 后续工作
 

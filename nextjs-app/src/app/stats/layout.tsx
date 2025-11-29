@@ -209,7 +209,7 @@ export default function StatsLayout({ children }: { children: React.ReactNode })
                   <div>
                     <CardDescription className="text-xs">分类库文件数</CardDescription>
                     <CardTitle className="text-xl md:text-2xl font-bold mt-1 group-hover:scale-105 transition-transform">
-                      {stats.files.totalInRoot.toLocaleString()}
+                      {stats?.data?.files?.totalInRoot?.toLocaleString() || '0'}
                     </CardTitle>
                   </div>
                 </div>
@@ -228,7 +228,7 @@ export default function StatsLayout({ children }: { children: React.ReactNode })
                   <div>
                     <CardDescription className="text-xs">待分类文件数</CardDescription>
                     <CardTitle className="text-xl md:text-2xl font-bold mt-1 group-hover:scale-105 transition-transform">
-                      {stats.files.totalInIncoming.toLocaleString()}
+                      {stats?.data?.files?.totalInIncoming?.toLocaleString() || '0'}
                     </CardTitle>
                   </div>
                 </div>
@@ -247,7 +247,7 @@ export default function StatsLayout({ children }: { children: React.ReactNode })
                   <div>
                     <CardDescription className="text-xs">分类目录数</CardDescription>
                     <CardTitle className="text-xl md:text-2xl font-bold mt-1 group-hover:scale-105 transition-transform">
-                      {stats.files.categories.toLocaleString()}
+                      {stats?.data?.files?.categories?.toLocaleString() || '0'}
                     </CardTitle>
                   </div>
                 </div>

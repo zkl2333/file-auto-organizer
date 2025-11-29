@@ -204,6 +204,9 @@ export const api = {
 
   getUsageStats: async (range: 'today' | 'week' | 'month' | 'all' = 'all'): Promise<UsageStats> => {
     const res = await fetch(`/api/usage-stats?range=${range}`);
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+    }
     return res.json();
   },
 
