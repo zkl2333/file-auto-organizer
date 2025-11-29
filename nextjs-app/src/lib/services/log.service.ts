@@ -1,34 +1,21 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { systemLogger } from '@/lib/logger';
+import {
+  LogModule,
+  getGlobalLogPaths,
+  getTaskLogPath as getTaskLogPathFromConfig,
+} from '@/lib/log-config';
 
-// 日志模块枚举
-export enum LogModule {
-  SYSTEM = 'system', // 系统日志
-  SERVER = 'server', // 服务器日志
-  MAIN = 'main', // 主服务日志
-  FILE_SCAN = 'file-scan', // 文件扫描日志
-  FILE_INFO = 'file-info', // 文件信息日志
-  FILE_MOVE = 'file-move', // 文件移动日志
-  AI = 'ai', // AI分类日志
-}
+// 重新导出以保持兼容性
+export { LogModule };
 
-// 全局日志路径配置
-export const GLOBAL_LOG_PATHS: Record<LogModule, string> = {
-  [LogModule.SYSTEM]: path.join(process.cwd(), 'logs', 'global', 'system.log'),
-  [LogModule.SERVER]: path.join(process.cwd(), 'logs', 'global', 'server.log'),
-  [LogModule.MAIN]: path.join(process.cwd(), 'logs', 'global', 'main.log'),
-  [LogModule.FILE_SCAN]: path.join(process.cwd(), 'logs', 'global', 'file-scan.log'),
-  [LogModule.FILE_INFO]: path.join(process.cwd(), 'logs', 'global', 'file-info.log'),
-  [LogModule.FILE_MOVE]: path.join(process.cwd(), 'logs', 'global', 'file-move.log'),
-  [LogModule.AI]: path.join(process.cwd(), 'logs', 'global', 'ai.log'),
-};
+// 全局日志路径配置（使用配置系统）
+export const GLOBAL_LOG_PATHS: Record<LogModule, string> = getGlobalLogPaths();
 
-/**
- * 获取任务级日志路径
- */
+// 导出配置系统的函数
 export function getTaskLogPath(module: LogModule, taskId: string): string {
-  return path.join(process.cwd(), 'logs', 'tasks', taskId, `${module}.log`);
+  return getTaskLogPathFromConfig(module, taskId);
 }
 
 /**
