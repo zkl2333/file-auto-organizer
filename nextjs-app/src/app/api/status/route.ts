@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
       currentTaskId: runningStatus.taskId,
       lastRunTime: null, // 后续可以实现历史记录功能
       lastRunStats: null, // 后续可以实现历史记录功能
-      cronEnabled: config.CRON_ENABLED,
+      cronEnabled: config.cron?.enabled ?? false,
       lastTask: runningStatus.isRunning
         ? {
             taskId: runningStatus.taskId,

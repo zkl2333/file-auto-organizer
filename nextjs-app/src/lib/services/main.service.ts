@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { mainLogger, setCurrentTaskId } from '@/lib/logger';
-import { getConfig } from '@/lib/config';
+import { getTaskConfig } from '@/lib/config';
 import { TaskUtils } from '@/lib/utils/task-utils';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -45,7 +45,7 @@ export class MainService {
   private static currentTaskStartTime: number | null = null;
   private static currentTaskDryRun: boolean = false;
 
-  private config = getConfig();
+  private config = getTaskConfig();
   private currentKnownDirs: string[] = []; // 动态维护的已知目录列表
 
   constructor() {
@@ -84,15 +84,19 @@ export class MainService {
    */
   private scanDirectories(): string[] {
     try {
-      const { ROOT_DIR } = this.config;
+      const { rootDir } = this.config;
       const fs = require('fs');
+      const path = require('path');
 
-      if (!fs.existsSync(ROOT_DIR)) {
-        mainLogger.warn({ rootDir: ROOT_DIR }, '根目录不存在');
+      // 解析为绝对路径，相对于当前工作目录
+      const absoluteRootDir = path.resolve(process.cwd(), rootDir);
+
+      if (!fs.existsSync(absoluteRootDir)) {
+        mainLogger.warn({ rootDir, absoluteRootDir, cwd: process.cwd() }, '根目录不存在');
         return [];
       }
 
-      const entries = fs.readdirSync(ROOT_DIR, { withFileTypes: true });
+      const entries = fs.readdirSync(absoluteRootDir, { withFileTypes: true });
       return entries
         .filter((entry) => entry.isDirectory())
         .map((entry) => entry.name)
@@ -108,18 +112,25 @@ export class MainService {
    */
   private scanIncomingFiles(): string[] {
     try {
-      const { INCOMING_DIR } = this.config;
+      const { incomingDir } = this.config;
       const fs = require('fs');
+      const path = require('path');
 
-      if (!fs.existsSync(INCOMING_DIR)) {
-        mainLogger.warn({ incomingDir: INCOMING_DIR }, '待处理目录不存在');
+      // 解析为绝对路径，相对于当前工作目录
+      const absoluteIncomingDir = path.resolve(process.cwd(), incomingDir);
+
+      if (!fs.existsSync(absoluteIncomingDir)) {
+        mainLogger.warn(
+          { incomingDir, absoluteIncomingDir, cwd: process.cwd() },
+          '待处理目录不存在'
+        );
         return [];
       }
 
-      const entries = fs.readdirSync(INCOMING_DIR, { withFileTypes: true });
+      const entries = fs.readdirSync(absoluteIncomingDir, { withFileTypes: true });
       return entries
         .filter((entry) => entry.isFile())
-        .map((entry) => path.join(INCOMING_DIR, entry.name));
+        .map((entry) => path.join(absoluteIncomingDir, entry.name));
     } catch (error) {
       mainLogger.error({ error }, '扫描待处理文件失败');
       return [];
