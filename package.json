@@ -14,7 +14,10 @@
     "start": "cd backend && npm run start",
     "test": "cd backend && npm run test",
     "test:watch": "cd backend && npm run test:watch",
-    "test:coverage": "cd backend && npm run test --coverage"
+    "test:coverage": "cd backend && npm run test --coverage",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "prepare": "husky"
   },
   "repository": {
     "type": "git",
@@ -27,6 +30,12 @@
   },
   "homepage": "https://github.com/zkl2333/file-auto-organizer#readme",
   "devDependencies": {
-    "concurrently": "^9.2.1"
+    "concurrently": "^9.2.1",
+    "husky": "^9.1.7",
+    "lint-staged": "^15.2.10",
+    "prettier": "^3.4.2"
+  },
+  "lint-staged": {
+    "*.{js,jsx,ts,tsx,css,md,json,yaml,yml}": "prettier --write"
   }
 }

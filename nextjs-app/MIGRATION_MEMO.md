@@ -1,12 +1,12 @@
 # Next.js 迁移备忘录
 
-在每次提交前规划下一步并更新备忘录，提交后读取备忘录来跟踪进度。
+在每次提交前规划下一步并更新备忘录，提交后读取备忘录来跟踪进度。使用中文注释和中文日志，注意编码的可读性和可维护性。
 
 ## 项目基本信息
 
 - **原项目**: file-auto-organizer (React Router + Fastify)
 - **目标架构**: Next.js 全栈应用 (App Router + API Routes)
-- **主要功能**: 文件自动整理工具，使用 AI 分析文件内容
+- **主要功能**: 文件自动整理工具，使用 AI 分析文件内容。支持定时任务动态调度。
 
 ## 技术栈对比
 
@@ -94,12 +94,22 @@ backend/src/api/ → nextjs-app/src/app/api/
 backend/src/service/ → nextjs-app/src/lib/services/
 ```
 
-### 下一步行动
+## 当前状态
 
-1. 创建组件目录结构
-2. 迁移基础 UI 组件
-3. 设置 API Routes 基础结构
-4. 逐步迁移页面和路由
+Next.js 开发服务器正在运行
+
+- http://localhost:8080
+- 所有 API 端点已测试通过
+- Turbopack 构建系统正常工作
+
+## 下一步计划
+
+现在后端 API 已经完全就绪，我们可以开始：
+
+1. 前端组件迁移 - 将 React Router 组件适配到 Next.js App Router
+2. 页面路由设置 - 创建 Next.js 页面结构
+3. UI 组件集成 - 保持现有的 UI 体验
+4. 数据获取优化 - 结合 SWR 和 Next.js 特性
 
 ## 问题记录
 
