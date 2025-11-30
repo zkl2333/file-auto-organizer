@@ -76,63 +76,110 @@ export async function loadConfig(configPath?: string): Promise<AppConfig> {
   try {
     const path = configPath || process.env.CONFIG_PATH || './config.yaml';
 
-    // 在浏览器环境中，使用默认配置
+    // 在浏览器环境中，不允许直接调用 loadConfig，应通过 API 获取配置
     if (typeof window !== 'undefined') {
-      currentConfig = defaultConfig;
-      return currentConfig;
+      throw new Error('loadConfig 不能在浏览器环境中调用，请使用 API 获取配置');
     }
 
     // 在服务端环境中，尝试读取配置文件
     const fs = await import('fs/promises');
     const yaml = await import('js-yaml');
 
+    // 检查配置文件是否存在
+    let configExists = false;
     try {
-      const configContent = await fs.readFile(path, 'utf-8');
-      const userConfig = yaml.load(configContent) as Partial<AppConfig>;
+      await fs.access(path);
+      configExists = true;
+    } catch {
+      configExists = false;
+    }
 
-      // 合并用户配置和默认配置
-      currentConfig = {
-        ...defaultConfig,
-        ...userConfig,
-        openai: {
-          ...defaultConfig.openai,
-          ...userConfig.openai,
-        },
-        directories: {
-          ...defaultConfig.directories,
-          ...userConfig.directories,
-        },
-        cron: {
-          ...defaultConfig.cron,
-          ...userConfig.cron,
-        },
-        logging: {
-          ...defaultConfig.logging,
-          ...userConfig.logging,
-        },
-        scan: {
-          ...defaultConfig.scan,
-          ...userConfig.scan,
-        },
-        ai: {
-          ...defaultConfig.ai,
-          ...userConfig.ai,
-        },
-        file_operations: {
-          ...defaultConfig.file_operations,
-          ...userConfig.file_operations,
-        },
-      };
-    } catch (error) {
-      console.warn(`配置文件 ${path} 不存在或格式错误，使用默认配置:`, error);
+    // 如果配置文件不存在，创建默认配置文件
+    if (!configExists) {
+      console.log(`配置文件 ${path} 不存在，正在创建默认配置文件...`);
+      const defaultYaml = yaml.dump(defaultConfig, {
+        indent: 2,
+        lineWidth: -1,
+        quotingType: '"',
+        forceQuotes: false,
+      });
+      const configWithComment = `# File Auto Organizer 配置文件\n# 首次运行自动生成，请根据需要修改配置\n\n${defaultYaml}`;
+      await fs.writeFile(path, configWithComment, 'utf-8');
+      console.log(`默认配置文件已创建: ${path}`);
       currentConfig = defaultConfig;
+    } else {
+      // 读取并解析配置文件
+      try {
+        const configContent = await fs.readFile(path, 'utf-8');
+        const userConfig = yaml.load(configContent) as Partial<AppConfig>;
+
+        // 合并用户配置和默认配置
+        currentConfig = {
+          ...defaultConfig,
+          ...userConfig,
+          openai: {
+            ...defaultConfig.openai,
+            ...userConfig.openai,
+          },
+          directories: {
+            ...defaultConfig.directories,
+            ...userConfig.directories,
+          },
+          cron: {
+            ...defaultConfig.cron,
+            ...userConfig.cron,
+          },
+          logging: {
+            ...defaultConfig.logging,
+            ...userConfig.logging,
+          },
+          scan: {
+            ...defaultConfig.scan,
+            ...userConfig.scan,
+          },
+          ai: {
+            ...defaultConfig.ai,
+            ...userConfig.ai,
+          },
+          file_operations: {
+            ...defaultConfig.file_operations,
+            ...userConfig.file_operations,
+          },
+        };
+      } catch (error) {
+        console.error(`配置文件 ${path} 格式错误，使用默认配置:`, error);
+        currentConfig = defaultConfig;
+      }
     }
   } catch (error) {
-    console.error('加载配置失败，使用默认配置:', error);
-    currentConfig = defaultConfig;
+    console.error('加载配置失败:', error);
+    throw error;
   }
 
+  // 验证待处理目录是否存在
+  await validateDirectories();
+
   return currentConfig;
+}
+
+/**
+ * 验证必要目录是否存在
+ */
+async function validateDirectories(): Promise<void> {
+  const fs = await import('fs/promises');
+  const { incoming_dir } = currentConfig.directories;
+
+  try {
+    const stat = await fs.stat(incoming_dir);
+    if (!stat.isDirectory()) {
+      throw new Error(`待处理路径 ${incoming_dir} 不是目录`);
+    }
+  } catch (error) {
+    if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
+      throw new Error(`待处理目录 ${incoming_dir} 不存在，请先创建该目录`);
+    }
+    throw error;
+  }
 }
 
 /**
@@ -226,11 +273,13 @@ export function applyEnvOverrides(): void {
   updateConfig(envOverrides);
 }
 
-// 初始化时加载配置
-loadConfig()
-  .then(() => {
-    applyEnvOverrides();
-  })
-  .catch((error) => {
-    console.error('初始化配置失败:', error);
-  });
+// 仅在服务端初始化时加载配置
+if (typeof window === 'undefined') {
+  loadConfig()
+    .then(() => {
+      applyEnvOverrides();
+    })
+    .catch((error) => {
+      console.error('初始化配置失败:', error);
+    });
+}

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { taskManager } from '@/lib/task-manager';
-import { systemLogger } from '@/lib/logger';
+import { logger } from '@/lib/logger';
 
 // POST /api/trigger - 触发任务执行
 export async function POST(request: NextRequest) {
@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
     taskManager
       .runTask(task.taskId)
       .then((result) => {
-        systemLogger.info(
+        logger.info(
           {
             taskId: result.taskId,
             result,
@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
         );
       })
       .catch((error) => {
-        systemLogger.error(
+        logger.error(
           {
             error: error.message,
             stack: error.stack,
@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
       taskId: task.taskId,
     });
   } catch (error) {
-    systemLogger.error(
+    logger.error(
       {
         error: error instanceof Error ? error.message : String(error),
       },

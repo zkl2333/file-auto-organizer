@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { taskManager } from '@/lib/task-manager';
-import { systemLogger } from '@/lib/logger';
+import { logger } from '@/lib/logger';
 import { getConfig } from '@/lib/config';
 
 // GET /api/status - 获取任务运行状态
@@ -40,7 +40,7 @@ export async function GET() {
 
     return NextResponse.json(statusResponse);
   } catch (error) {
-    systemLogger.error(
+    logger.error(
       {
         error: error instanceof Error ? error.message : String(error),
       },

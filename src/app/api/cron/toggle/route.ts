@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { systemLogger } from '@/lib/logger';
+import { logger } from '@/lib/logger';
 import { getConfig, updateConfig } from '@/lib/config';
 
 // POST /api/cron/toggle - 切换定时任务状态
@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    systemLogger.info(
+    logger.info(
       {
         enabled: enabled,
         schedule: config.cron?.schedule,
@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
       enabled: enabled,
     });
   } catch (error) {
-    systemLogger.error(
+    logger.error(
       {
         error: error instanceof Error ? error.message : String(error),
       },

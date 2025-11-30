@@ -75,11 +75,8 @@ export async function PUT(request: NextRequest) {
     // Validate configuration format
     const validatedConfig = configSchema.parse(body);
 
-    // Update configuration with type assertion
-    const configUpdate = validatedConfig as any;
-
-    // Update configuration
-    updateConfig(configUpdate);
+    // Update configuration (type assertion needed due to zod schema partial types)
+    updateConfig(validatedConfig as Parameters<typeof updateConfig>[0]);
 
     const updatedConfig = await loadConfig();
 

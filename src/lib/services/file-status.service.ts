@@ -1,6 +1,6 @@
 import path from 'node:path';
 import fs from 'node:fs';
-import { systemLogger } from '@/lib/logger';
+import { logger } from '@/lib/logger';
 import type { ProcessedFile } from '@/lib/api-client';
 
 /**
@@ -21,7 +21,7 @@ export class FileStatusService {
   private ensureTasksDir(): void {
     if (!fs.existsSync(this.tasksDir)) {
       fs.mkdirSync(this.tasksDir, { recursive: true });
-      systemLogger.info({ tasksDir: this.tasksDir }, '创建 tasks 目录');
+      logger.info({ tasksDir: this.tasksDir }, '创建 tasks 目录');
     }
   }
 
@@ -38,9 +38,9 @@ export class FileStatusService {
       const fileListPath = path.join(taskDir, 'files.json');
       fs.writeFileSync(fileListPath, JSON.stringify(processedFiles, null, 2), 'utf8');
 
-      systemLogger.info({ taskId, fileCount: processedFiles.length }, '文件列表已保存到任务目录');
+      logger.info({ taskId, fileCount: processedFiles.length }, '文件列表已保存到任务目录');
     } catch (error) {
-      systemLogger.error({ error, taskId }, '保存文件列表失败');
+      logger.error({ error, taskId }, '保存文件列表失败');
     }
   }
 
@@ -53,17 +53,17 @@ export class FileStatusService {
       const fileListPath = path.join(taskDir, 'files.json');
 
       if (!fs.existsSync(fileListPath)) {
-        systemLogger.warn({ taskId }, '任务文件列表不存在');
+        logger.warn({ taskId }, '任务文件列表不存在');
         return [];
       }
 
       const fileContent = fs.readFileSync(fileListPath, 'utf8');
       const files: ProcessedFile[] = JSON.parse(fileContent);
 
-      systemLogger.info({ taskId, fileCount: files.length }, '已加载任务文件列表');
+      logger.info({ taskId, fileCount: files.length }, '已加载任务文件列表');
       return files;
     } catch (error) {
-      systemLogger.error({ error, taskId }, '加载任务文件列表失败');
+      logger.error({ error, taskId }, '加载任务文件列表失败');
       return [];
     }
   }
@@ -131,7 +131,7 @@ export class FileStatusService {
         .map((entry) => entry.name)
         .sort((a, b) => b.localeCompare(a)); // 按时间倒序
     } catch (error) {
-      systemLogger.error({ error }, '获取任务ID列表失败');
+      logger.error({ error }, '获取任务ID列表失败');
       return [];
     }
   }
@@ -152,16 +152,16 @@ export class FileStatusService {
       const taskDir = path.join(this.tasksDir, taskId);
 
       if (!fs.existsSync(taskDir)) {
-        systemLogger.warn({ taskId }, '任务目录不存在，无需删除');
+        logger.warn({ taskId }, '任务目录不存在，无需删除');
         return;
       }
 
       // 递归删除任务目录
       fs.rmSync(taskDir, { recursive: true, force: true });
 
-      systemLogger.info({ taskId }, '任务文件状态已删除');
+      logger.info({ taskId }, '任务文件状态已删除');
     } catch (error) {
-      systemLogger.error({ error, taskId }, '删除任务文件状态失败');
+      logger.error({ error, taskId }, '删除任务文件状态失败');
       throw error;
     }
   }

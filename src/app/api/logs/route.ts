@@ -6,11 +6,9 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     void request; // 标记为已使用
-    const type = searchParams.get('type') || 'system';
     const limit = parseInt(searchParams.get('limit') || '200');
-    const taskId = searchParams.get('taskId');
 
-    const logs = await readLogFiles(type, limit, taskId || undefined);
+    const logs = await readLogFiles(limit);
 
     return NextResponse.json({ logs });
   } catch (error) {

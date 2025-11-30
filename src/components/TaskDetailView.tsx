@@ -13,7 +13,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
 import { Search, File, Database } from 'lucide-react';
 import {
@@ -35,7 +34,6 @@ import {
 } from 'lucide-react';
 import { FileIcon } from './FileIcon';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
-import { LogRenderer } from './LogRenderer';
 
 const formatDuration = (ms: number | undefined): string => {
   if (ms == null || isNaN(ms)) return '-';
@@ -66,14 +64,6 @@ const formatTime = (isoTime: string | undefined): string => {
   }
 };
 
-const LOG_TYPES = [
-  { value: 'main', label: '主服务', icon: '📋' },
-  { value: 'ai', label: 'AI分类', icon: '🤖' },
-  { value: 'file-move', label: '文件移动', icon: '📁' },
-  { value: 'file-scan', label: '扫描', icon: '🔍' },
-  { value: 'file-info', label: '文件信息', icon: '📄' },
-];
-
 // 图表颜色配置 - 使用现代渐变色系
 const CHART_COLORS = [
   'hsl(var(--chart-1))',
@@ -98,10 +88,8 @@ export const TaskDetailView: React.FC<{
   taskId: string;
   onBack?: () => void;
 }> = ({ taskId, onBack }) => {
-  const [currentLogType, setCurrentLogType] = useState('main');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedFileType, setSelectedFileType] = useState('all');
-  const [expandedLogs, setExpandedLogs] = useState<Set<number>>(new Set());
 
   const {
     data: task,
@@ -110,10 +98,6 @@ export const TaskDetailView: React.FC<{
   } = useSWR<TaskRecord>(
     taskId ? `/api/task/${taskId}` : null,
     taskId ? () => api.getTaskDetail(taskId) : null
-  );
-  const { data: logsData, isLoading: logsLoading } = useSWR<{ logs: string[] }>(
-    taskId ? `/api/task/${taskId}/logs?type=${currentLogType}&limit=500` : null,
-    taskId ? () => api.getTaskLogs(taskId, currentLogType, 500) : null
   );
 
   // 使用实时轮询获取文件列表
@@ -125,7 +109,6 @@ export const TaskDetailView: React.FC<{
     { refreshInterval: taskIsRunning ? 2000 : 0 }
   );
 
-  const logs = logsData?.logs || [];
   const processedFiles: ProcessedFile[] = taskFiles?.files || [];
 
   // 状态映射函数
@@ -192,16 +175,6 @@ export const TaskDetailView: React.FC<{
           color: 'text-gray-600 dark:text-gray-400',
         };
     }
-  };
-
-  const toggleExpand = (index: number) => {
-    const newExpanded = new Set(expandedLogs);
-    if (newExpanded.has(index)) {
-      newExpanded.delete(index);
-    } else {
-      newExpanded.add(index);
-    }
-    setExpandedLogs(newExpanded);
   };
 
   if (isLoading || filesLoading) {
@@ -940,75 +913,6 @@ export const TaskDetailView: React.FC<{
             </CardContent>
           </Card>
         )}
-
-        {/* 任务日志 */}
-        <Card className="group hover:shadow-lg transition-all duration-300 border-0 bg-gradient-to-br from-background to-muted/20 backdrop-blur-sm">
-          <CardHeader>
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 rounded-xl bg-gradient-to-br from-slate-500 to-slate-600 text-white shadow-lg">
-                <Database className="w-5 h-5" />
-              </div>
-              <div>
-                <CardTitle className="text-xl font-semibold">任务日志</CardTitle>
-                <CardDescription className="text-sm mt-1">
-                  查看本次任务的详细执行日志
-                </CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <Tabs value={currentLogType} onValueChange={setCurrentLogType} className="space-y-4">
-              <TabsList className="inline-flex h-10 items-center justify-center rounded-lg bg-muted p-1 text-muted-foreground shadow-inner">
-                {LOG_TYPES.map((type) => (
-                  <TabsTrigger
-                    key={type.value}
-                    value={type.value}
-                    className="inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm"
-                  >
-                    <span className="hidden sm:inline mr-2">{type.icon}</span>
-                    {type.label}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-
-              {LOG_TYPES.map((type) => (
-                <TabsContent key={type.value} value={type.value} className="space-y-4">
-                  {logsLoading ? (
-                    <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
-                      <RefreshCw className="w-8 h-8 animate-spin mb-4" />
-                      <p className="text-sm font-medium">加载日志中...</p>
-                    </div>
-                  ) : logs.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
-                      <Database className="w-12 h-12 mb-4 opacity-20" />
-                      <p className="text-sm font-medium">暂无日志</p>
-                      <p className="text-xs mt-1">该服务模块没有产生任何日志</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between text-sm text-muted-foreground px-2">
-                        <span>共 {logs.length} 条日志</span>
-                        <span className="text-xs bg-muted/50 px-2 py-1 rounded">最新在前</span>
-                      </div>
-                      <div className="max-h-[600px] overflow-y-auto space-y-2 rounded-lg border bg-muted/20 p-4">
-                        {logs.map((log, index) => (
-                          <LogRenderer
-                            key={index}
-                            log={log}
-                            index={index}
-                            expandedLogs={expandedLogs}
-                            onToggleExpand={toggleExpand}
-                            showCopyButton={false}
-                          />
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </TabsContent>
-              ))}
-            </Tabs>
-          </CardContent>
-        </Card>
       </div>
     </div>
   );

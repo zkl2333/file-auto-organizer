@@ -82,8 +82,7 @@ function DefaultErrorFallback({ error, reset }: DefaultErrorFallbackProps) {
         {/* 错误详情（开发环境） */}
         {process.env.NODE_ENV === 'development' && error && (
           <Alert variant="destructive" className="text-left">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertDescription>
+            <AlertDescription className="overflow-auto">
               <div className="mt-2">
                 <strong>错误信息:</strong>
                 <pre className="mt-1 text-xs bg-muted/50 p-2 rounded overflow-auto max-h-32">

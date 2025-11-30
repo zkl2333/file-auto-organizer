@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
-import { systemLogger } from '@/lib/logger';
+import { logger } from '@/lib/logger';
 import { taskManager } from '@/lib/task-manager';
+import { TaskStatus } from '@/lib/task-manager/types';
 
 // GET /api/task-history - 获取所有任务历史
 export async function GET() {
@@ -23,7 +24,14 @@ export async function GET() {
         similarityMatched: snapshot.stats.similarityMatched,
         aiClassified: snapshot.stats.aiClassified,
         fileTypes: snapshot.stats.fileTypes,
-        status: snapshot.status,
+        status:
+          snapshot.status === TaskStatus.SUCCESS
+            ? 'success'
+            : snapshot.status === TaskStatus.FAILED
+              ? 'failed'
+              : snapshot.status === TaskStatus.RUNNING
+                ? 'running'
+                : 'partial',
         dryRun: snapshot.dryRun,
         errorMessage: snapshot.errorMessage,
       };
@@ -31,7 +39,7 @@ export async function GET() {
 
     return NextResponse.json({ tasks });
   } catch (error) {
-    systemLogger.error(
+    logger.error(
       {
         error: error instanceof Error ? error.message : String(error),
       },

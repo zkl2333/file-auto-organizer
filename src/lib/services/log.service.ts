@@ -1,86 +1,74 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { systemLogger } from '@/lib/logger';
-import {
-  LogModule,
-  getGlobalLogPaths,
-  getTaskLogPath as getTaskLogPathFromConfig,
-} from '@/lib/log-config';
-
-// 重新导出以保持兼容性
-export { LogModule };
-
-// 全局日志路径配置（使用配置系统）
-export const GLOBAL_LOG_PATHS: Record<LogModule, string> = getGlobalLogPaths();
-
-// 导出配置系统的函数
-export function getTaskLogPath(module: LogModule, taskId: string): string {
-  return getTaskLogPathFromConfig(module, taskId);
-}
+import { logger } from '@/lib/logger';
+import { getConfig } from '@/lib/config';
 
 /**
- * 读取日志文件
- * @param type 日志类型
+ * 简化的日志服务
+ * 读取按天轮转的日志文件 logs/app-YYYY-MM-DD.log
+ */
+
+/**
+ * 读取日志文件（读取最新的日志文件）
  * @param limit 读取行数限制
- * @param taskId 任务ID（可选，用于读取任务日志）
  * @returns 日志行数组
  */
-export async function readLogFiles(
-  type: string,
-  limit: number = 200,
-  taskId?: string
-): Promise<string[]> {
+export async function readLogFiles(limit: number = 200): Promise<string[]> {
   try {
-    // 确保日志类型是有效的
-    const logModule = type as LogModule;
-    if (!Object.values(LogModule).includes(logModule)) {
-      systemLogger.warn({ type }, '无效的日志类型');
+    const config = getConfig();
+    const logDir = path.resolve(config.logging.dir);
+
+    // 检查日志目录是否存在
+    if (!fs.existsSync(logDir)) {
+      logger.debug({ logDir }, '日志目录不存在');
       return [];
     }
 
-    let logPath: string;
+    // 查找最新的日志文件
+    const files = fs
+      .readdirSync(logDir)
+      .filter((f) => f.startsWith('app-') && f.endsWith('.log'))
+      .sort()
+      .reverse(); // 按日期倒序
 
-    if (taskId) {
-      // 读取任务日志
-      logPath = getTaskLogPath(logModule, taskId);
-    } else {
-      // 读取全局日志
-      logPath = GLOBAL_LOG_PATHS[logModule];
+    // 也检查 app.log（当天未轮转的情况）
+    if (fs.existsSync(path.join(logDir, 'app.log'))) {
+      files.unshift('app.log');
     }
 
-    // 检查文件是否存在
-    if (!fs.existsSync(logPath)) {
-      systemLogger.debug({ logPath }, '日志文件不存在');
+    if (files.length === 0) {
+      logger.debug({ logDir }, '没有找到日志文件');
       return [];
     }
 
-    // 读取文件内容
-    const content = fs.readFileSync(logPath, 'utf-8');
-    const lines = content.split('\n').filter((line) => line.trim());
+    // 从最新的日志文件读取
+    const allLines: string[] = [];
+    for (const file of files) {
+      if (allLines.length >= limit) break;
+
+      const logPath = path.join(logDir, file);
+      const content = fs.readFileSync(logPath, 'utf-8');
+      const lines = content.split('\n').filter((line) => line.trim());
+      allLines.push(...lines);
+    }
 
     // 返回最后的 N 行
-    return lines.slice(-limit);
+    return allLines.slice(-limit);
   } catch (error) {
-    systemLogger.error({ error, type, taskId, limit }, '读取日志文件失败');
+    logger.error({ error, limit }, '读取日志文件失败');
     return [];
   }
 }
 
 /**
- * 获取可用的日志类型列表
- */
-export function getAvailableLogTypes(): LogModule[] {
-  return Object.values(LogModule);
-}
-
-/**
  * 获取日志文件信息
  */
-export function getLogFileInfo(logModule: LogModule, taskId?: string) {
-  const logPath = taskId ? getTaskLogPath(logModule, taskId) : GLOBAL_LOG_PATHS[logModule];
+export function getLogFileInfo() {
+  const config = getConfig();
+  const logDir = path.resolve(config.logging.dir);
 
   try {
-    if (!fs.existsSync(logPath)) {
+    if (!fs.existsSync(logDir)) {
       return {
         exists: false,
         size: 0,
@@ -89,19 +77,49 @@ export function getLogFileInfo(logModule: LogModule, taskId?: string) {
       };
     }
 
-    const stats = fs.statSync(logPath);
-    const content = fs.readFileSync(logPath, 'utf-8');
-    const lines = content.split('\n').filter((line) => line.trim()).length;
+    // 查找日志文件
+    const files = fs
+      .readdirSync(logDir)
+      .filter((f) => (f.startsWith('app-') && f.endsWith('.log')) || f === 'app.log');
+
+    if (files.length === 0) {
+      return {
+        exists: false,
+        size: 0,
+        modified: null,
+        lines: 0,
+      };
+    }
+
+    // 计算总大小和行数
+    let totalSize = 0;
+    let totalLines = 0;
+    let latestModified: Date | null = null;
+
+    for (const file of files) {
+      const filePath = path.join(logDir, file);
+      const stats = fs.statSync(filePath);
+      const content = fs.readFileSync(filePath, 'utf-8');
+      const lines = content.split('\n').filter((line) => line.trim()).length;
+
+      totalSize += stats.size;
+      totalLines += lines;
+
+      if (!latestModified || stats.mtime > latestModified) {
+        latestModified = stats.mtime;
+      }
+    }
 
     return {
       exists: true,
-      size: stats.size,
-      modified: stats.mtime,
-      lines,
-      path: logPath,
+      size: totalSize,
+      modified: latestModified,
+      lines: totalLines,
+      fileCount: files.length,
+      path: logDir,
     };
   } catch (error) {
-    systemLogger.error({ error, logModule, taskId }, '获取日志文件信息失败');
+    logger.error({ error }, '获取日志文件信息失败');
     return {
       exists: false,
       size: 0,
@@ -113,10 +131,11 @@ export function getLogFileInfo(logModule: LogModule, taskId?: string) {
 }
 
 /**
- * 清理旧日志文件
+ * 清理旧日志文件（保留最近 N 天）
  */
 export function cleanupOldLogs(daysToKeep: number = 30): void {
-  const logsDir = path.join(process.cwd(), 'logs');
+  const config = getConfig();
+  const logsDir = path.resolve(config.logging.dir);
 
   try {
     if (!fs.existsSync(logsDir)) {
@@ -125,36 +144,41 @@ export function cleanupOldLogs(daysToKeep: number = 30): void {
 
     const cutoffTime = new Date(Date.now() - daysToKeep * 24 * 60 * 60 * 1000);
 
-    // 递归删除旧日志文件
-    function cleanupDirectory(dir: string): void {
-      const items = fs.readdirSync(dir);
+    // 清理旧的日志文件
+    const files = fs.readdirSync(logsDir);
+    for (const file of files) {
+      const filePath = path.join(logsDir, file);
+      const stats = fs.statSync(filePath);
 
-      for (const item of items) {
-        const itemPath = path.join(dir, item);
-        const stats = fs.statSync(itemPath);
+      if (stats.isFile() && stats.mtime < cutoffTime) {
+        fs.unlinkSync(filePath);
+        logger.info({ filePath }, '删除旧日志文件');
+      }
+    }
 
-        if (stats.isDirectory()) {
-          cleanupDirectory(itemPath);
+    // 清理 tasks 目录下的旧文件
+    const tasksDir = path.join(logsDir, 'tasks');
+    if (fs.existsSync(tasksDir)) {
+      const taskDirs = fs.readdirSync(tasksDir, { withFileTypes: true });
 
-          // 如果目录为空，删除目录
-          try {
-            const remainingItems = fs.readdirSync(itemPath);
-            if (remainingItems.length === 0) {
-              fs.rmdirSync(itemPath);
+      for (const entry of taskDirs) {
+        if (entry.isDirectory()) {
+          const taskDirPath = path.join(tasksDir, entry.name);
+          const filesJsonPath = path.join(taskDirPath, 'files.json');
+
+          if (fs.existsSync(filesJsonPath)) {
+            const stats = fs.statSync(filesJsonPath);
+            if (stats.mtime < cutoffTime) {
+              fs.rmSync(taskDirPath, { recursive: true, force: true });
+              logger.info({ taskId: entry.name }, '删除旧任务文件');
             }
-          } catch {
-            // 忽略删除目录时的错误
           }
-        } else if (stats.mtime < cutoffTime) {
-          fs.unlinkSync(itemPath);
-          systemLogger.info({ filePath: itemPath }, '删除旧日志文件');
         }
       }
     }
 
-    cleanupDirectory(logsDir);
-    systemLogger.info({ daysToKeep }, '日志清理完成');
+    logger.info({ daysToKeep }, '日志清理完成');
   } catch (error) {
-    systemLogger.error({ error, daysToKeep }, '清理旧日志文件失败');
+    logger.error({ error, daysToKeep }, '清理旧日志文件失败');
   }
 }

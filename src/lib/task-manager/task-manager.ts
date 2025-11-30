@@ -4,7 +4,7 @@ import { TaskUtils } from '@/lib/utils/task-utils';
 import { StatsService, type TaskStatsRecord } from '@/lib/services/stats.service';
 import { FileStatusService } from '@/lib/services/file-status.service';
 import { TaskExecutor } from './task-executor';
-import { mainLogger } from '@/lib/logger';
+import { logger } from '@/lib/logger';
 
 /**
  * 任务管理器（单例模式）
@@ -60,7 +60,7 @@ export class TaskManager {
     this.tasks.set(taskId, task);
     this.pruneCache();
 
-    mainLogger.info({ taskId, options }, '任务已创建');
+    logger.info({ taskId, options }, '任务已创建');
 
     return task;
   }
@@ -84,7 +84,7 @@ export class TaskManager {
       this.runningTaskId = taskId;
       task.start();
 
-      mainLogger.info({ taskId, dryRun: task.dryRun }, '开始执行任务');
+      logger.info({ taskId, dryRun: task.dryRun }, '开始执行任务');
 
       // 创建执行器并运行
       const executor = new TaskExecutor(task);
@@ -93,7 +93,7 @@ export class TaskManager {
       // 保存任务记录到持久化存储
       await this.persistTask(task);
 
-      mainLogger.info({ taskId, result }, '任务执行完成');
+      logger.info({ taskId, result }, '任务执行完成');
 
       return result;
     } catch (error) {
@@ -101,7 +101,7 @@ export class TaskManager {
       task.fail(error instanceof Error ? error : String(error));
       await this.persistTask(task);
 
-      mainLogger.error({ taskId, error }, '任务执行失败');
+      logger.error({ taskId, error }, '任务执行失败');
 
       return {
         taskId,
@@ -205,7 +205,7 @@ export class TaskManager {
     await this.statsService.deleteTask(taskId);
     await this.fileStatusService.deleteTask(taskId);
 
-    mainLogger.info({ taskId }, '任务已删除');
+    logger.info({ taskId }, '任务已删除');
   }
 
   /**
@@ -222,7 +222,7 @@ export class TaskManager {
       try {
         await this.deleteTask(taskId);
         deleted.push(taskId);
-      } catch (error) {
+      } catch {
         notFound.push(taskId);
       }
     }
@@ -269,9 +269,9 @@ export class TaskManager {
         await this.fileStatusService.saveFileList(task.taskId, task.files);
       }
 
-      mainLogger.debug({ taskId: task.taskId }, '任务已持久化');
+      logger.debug({ taskId: task.taskId }, '任务已持久化');
     } catch (error) {
-      mainLogger.error({ taskId: task.taskId, error }, '持久化任务失败');
+      logger.error({ taskId: task.taskId, error }, '持久化任务失败');
     }
   }
 
@@ -279,9 +279,13 @@ export class TaskManager {
    * 从统计记录重建Task对象
    */
   private reconstructTaskFromStats(record: TaskStatsRecord): Task {
+    // 恢复开始时间
+    const startTime = new Date(record.startTime).getTime();
+
     const task = new Task(record.taskId, {
       dryRun: record.dryRun,
       triggeredBy: 'manual', // 无法从记录恢复
+      startTime, // 恢复原始开始时间
     });
 
     // 恢复状态
@@ -291,11 +295,19 @@ export class TaskManager {
       task.status = TaskStatus.FAILED;
     } else if (record.status === 'running') {
       task.status = TaskStatus.RUNNING;
+    } else if (record.status === 'partial') {
+      // partial 状态映射为 SUCCESS（部分成功也算成功）
+      task.status = TaskStatus.SUCCESS;
     }
 
     // 恢复时间
     if (record.endTime) {
       task.endTime = new Date(record.endTime).getTime();
+    }
+
+    // 恢复错误信息
+    if (record.errorMessage) {
+      task.errorMessage = record.errorMessage;
     }
 
     // 恢复统计
@@ -308,12 +320,10 @@ export class TaskManager {
       fileTypes: record.fileTypes,
     });
 
-    // 恢复进度
+    // 恢复进度（similarityMatched/aiClassified 通过 stats 代理获取）
     task.updateProgress({
       totalFiles: record.filesProcessed,
       processedFiles: record.filesProcessed,
-      similarityMatched: record.similarityMatched,
-      aiClassified: record.aiClassified,
       currentStage: 'complete',
       percentage: 100,
     });
@@ -332,7 +342,7 @@ export class TaskManager {
       this.tasks.set(record.taskId, task);
     });
 
-    mainLogger.info({ count: recentRecords.length }, '已加载最近任务到缓存');
+    logger.info({ count: recentRecords.length }, '已加载最近任务到缓存');
   }
 
   /**
@@ -348,7 +358,7 @@ export class TaskManager {
         this.tasks.delete(task.taskId);
       });
 
-      mainLogger.debug({ removed: toRemove.length }, '清理任务缓存');
+      logger.debug({ removed: toRemove.length }, '清理任务缓存');
     }
   }
 }

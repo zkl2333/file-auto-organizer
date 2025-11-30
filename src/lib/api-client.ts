@@ -98,6 +98,13 @@ export interface UsageStats {
     tokensUsed: number;
     filesProcessed: number;
   }>;
+  taskTrends: Array<{
+    taskId: string;
+    startTime: string;
+    aiCalls: number;
+    tokensUsed: number;
+    filesProcessed: number;
+  }>;
 }
 
 // 文件处理状态类型
@@ -219,8 +226,8 @@ export const api = {
     return handleApiRequest(fetch('/api/status'), '获取任务状态失败');
   },
 
-  getLogs: async (type: string, limit: number = 200): Promise<{ logs: string[] }> => {
-    return handleApiRequest(fetch(`/api/logs?type=${type}&limit=${limit}`), '获取日志失败');
+  getLogs: async (limit: number = 200): Promise<{ logs: string[] }> => {
+    return handleApiRequest(fetch(`/api/logs?limit=${limit}`), '获取日志失败');
   },
 
   triggerTask: async (dryRun: boolean = false): Promise<TriggerResult> => {
@@ -283,17 +290,6 @@ export const api = {
         body: JSON.stringify({ taskIds }),
       }),
       '批量删除任务失败'
-    );
-  },
-
-  getTaskLogs: async (
-    taskId: string,
-    type: string = 'main',
-    limit: number = 200
-  ): Promise<{ logs: string[] }> => {
-    return handleApiRequest(
-      fetch(`/api/task/${taskId}/logs?type=${type}&limit=${limit}`),
-      '获取任务日志失败'
     );
   },
 

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { systemLogger } from '@/lib/logger';
+import { logger } from '@/lib/logger';
 import { taskManager } from '@/lib/task-manager';
 
 // GET /api/task/[taskId]/files - 获取指定任务的文件处理结果
@@ -25,7 +25,7 @@ export async function GET(
 
     const files = task.files;
 
-    systemLogger.info({ taskId, fileCount: files.length }, '获取任务文件列表成功');
+    logger.info({ taskId, fileCount: files.length }, '获取任务文件列表成功');
 
     return NextResponse.json({
       taskId,
@@ -33,7 +33,7 @@ export async function GET(
       totalFiles: files.length,
     });
   } catch (error) {
-    systemLogger.error(
+    logger.error(
       {
         taskId: await params.then((p) => p.taskId),
         error: error instanceof Error ? error.message : String(error),

@@ -26,6 +26,8 @@ import {
   Tooltip,
   AreaChart,
   Area,
+  BarChart,
+  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -36,8 +38,6 @@ import {
   Zap,
   FileStack,
   FolderTree,
-  Activity,
-  Clock,
   TrendingUp,
   RefreshCw,
   Sparkles,
@@ -132,19 +132,26 @@ export const StatsView: React.FC<StatsViewProps> = ({ timeRange = 'week' }) => {
     'var(--chart-10)',
   ];
 
-  // 准备每日趋势数据
-  const dailyTrendData = usageStats.dailyTrends.map((trend) => ({
-    date: trend.date,
-    files: trend.filesProcessed,
-    tokens: Math.round(trend.tokensUsed / 1000), // 转换为K
-  }));
+  // 准备趋势数据（优先使用任务趋势）
+  const trendData = (usageStats.taskTrends || usageStats.dailyTrends).map(
+    (
+      trend:
+        | { taskId: string; startTime: string; filesProcessed: number; tokensUsed: number }
+        | { date: string; filesProcessed: number; tokensUsed: number }
+    ) => ({
+      date: 'startTime' in trend ? trend.startTime : trend.date,
+      files: trend.filesProcessed,
+      tokens: Math.round(trend.tokensUsed / 1000), // 转换为K
+      isTask: 'taskId' in trend,
+    })
+  );
 
   return (
     <div className="space-y-6">
       {/* 顶部操作栏 - 现代设计 */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="space-y-1">
-          <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-foreground to-foreground/60 bg-clip-text text-transparent">
+          <h1 className="text-3xl font-bold tracking-tight bg-linear-to-r from-foreground to-foreground/60 bg-clip-text text-transparent">
             数据统计
           </h1>
           <p className="text-sm text-muted-foreground flex items-center gap-2">
@@ -172,16 +179,13 @@ export const StatsView: React.FC<StatsViewProps> = ({ timeRange = 'week' }) => {
             className="hidden sm:flex"
           >
             <ToggleGroupItem value="today" className="gap-2 text-xs">
-              <Clock className="w-3.5 h-3.5" />
               今日
             </ToggleGroupItem>
             <ToggleGroupItem value="week" className="gap-2 text-xs">
-              <TrendingUp className="w-3.5 h-3.5" />
-              7天
+              本周
             </ToggleGroupItem>
             <ToggleGroupItem value="month" className="gap-2 text-xs">
-              <Activity className="w-3.5 h-3.5" />
-              30天
+              本月
             </ToggleGroupItem>
             <ToggleGroupItem value="all" className="text-xs">
               全部
@@ -196,10 +200,10 @@ export const StatsView: React.FC<StatsViewProps> = ({ timeRange = 'week' }) => {
                 今日
               </SelectItem>
               <SelectItem value="week" className="rounded-lg">
-                7天
+                本周
               </SelectItem>
               <SelectItem value="month" className="rounded-lg">
-                30天
+                本月
               </SelectItem>
               <SelectItem value="all" className="rounded-lg">
                 全部
@@ -339,7 +343,9 @@ export const StatsView: React.FC<StatsViewProps> = ({ timeRange = 'week' }) => {
                         backgroundColor: 'hsl(var(--background))',
                       }}
                       formatter={(value: number, name: string) => [
-                        <span className="font-semibold">{value} 个文件</span>,
+                        <span key="value" className="font-semibold">
+                          {value} 个文件
+                        </span>,
                         name,
                       ]}
                     />
@@ -393,7 +399,7 @@ export const StatsView: React.FC<StatsViewProps> = ({ timeRange = 'week' }) => {
           </CardContent>
         </Card>
 
-        {/* 每日整理趋势图表 */}
+        {/* 整理趋势图表 */}
         <Card className="group hover:shadow-lg transition-all duration-300 border-0 bg-gradient-to-br from-background to-muted/20 backdrop-blur-sm">
           <CardHeader className="pb-4">
             <div className="flex items-center justify-between">
@@ -402,113 +408,240 @@ export const StatsView: React.FC<StatsViewProps> = ({ timeRange = 'week' }) => {
                   <TrendingUp className="w-5 h-5" />
                 </div>
                 <div>
-                  <CardTitle className="text-xl font-semibold">每日整理趋势</CardTitle>
+                  <CardTitle className="text-xl font-semibold">
+                    {trendData.some((t) => t.isTask) ? '任务整理趋势' : '每日整理趋势'}
+                  </CardTitle>
                   <CardDescription className="text-sm mt-1">
                     文件处理数量和 Token 消耗趋势
                   </CardDescription>
                 </div>
               </div>
               <Badge variant="outline" className="hidden sm:flex">
-                {dailyTrendData.length} 天数据
+                {trendData.length} {trendData.some((t) => t.isTask) ? '次任务' : '天数据'}
               </Badge>
             </div>
           </CardHeader>
           <CardContent className="px-2 pt-0 sm:px-6">
-            {dailyTrendData.length > 0 ? (
+            {trendData.length > 0 ? (
               <ResponsiveContainer width="100%" height={320}>
-                <AreaChart
-                  data={dailyTrendData}
-                  margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
-                >
-                  <defs>
-                    <linearGradient id="fillFiles" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="hsl(var(--chart-1))" stopOpacity={0.8} />
-                      <stop offset="95%" stopColor="hsl(var(--chart-1))" stopOpacity={0.1} />
-                    </linearGradient>
-                    <linearGradient id="fillTokens" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="hsl(var(--chart-2))" stopOpacity={0.8} />
-                      <stop offset="95%" stopColor="hsl(var(--chart-2))" stopOpacity={0.1} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid
-                    strokeDasharray="3 3"
-                    vertical={false}
-                    stroke="hsl(var(--border))"
-                    opacity={0.2}
-                  />
-                  <XAxis
-                    dataKey="date"
-                    tickLine={false}
-                    axisLine={false}
-                    tickMargin={12}
-                    minTickGap={32}
-                    tick={{ fontSize: 11 }}
-                    tickFormatter={(value) => {
-                      const date = new Date(value);
-                      return date.toLocaleDateString('zh-CN', {
-                        month: 'short',
-                        day: 'numeric',
-                      });
-                    }}
-                  />
-                  <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 11 }} tickMargin={8} />
-                  <Tooltip
-                    cursor={{
-                      stroke: 'hsl(var(--border))',
-                      strokeWidth: 1,
-                      strokeDasharray: '5 5',
-                    }}
-                    contentStyle={{
-                      borderRadius: '12px',
-                      border: '1px solid hsl(var(--border))',
-                      boxShadow: '0 10px 25px rgba(0,0,0,0.1)',
-                      backgroundColor: 'hsl(var(--background))',
-                    }}
-                    labelFormatter={(value) => {
-                      return new Date(value).toLocaleDateString('zh-CN', {
-                        year: 'numeric',
-                        month: 'short',
-                        day: 'numeric',
-                      });
-                    }}
-                    formatter={(value, name) => {
-                      if (name === 'files')
-                        return [<span className="font-semibold">{value}</span>, '文件数'];
-                      if (name === 'tokens')
-                        return [<span className="font-semibold">{value}K</span>, 'Token'];
-                      return [value, name];
-                    }}
-                  />
-                  <Legend
-                    wrapperStyle={{ fontSize: '13px', paddingTop: '16px' }}
-                    iconType="line"
-                    formatter={(value) => {
-                      if (value === 'files') return '📁 文件数';
-                      if (value === 'tokens') return '⚡ Token (K)';
-                      return value;
-                    }}
-                  />
-                  <Area
-                    dataKey="files"
-                    type="monotone"
-                    fill="url(#fillFiles)"
-                    stroke="hsl(var(--chart-1))"
-                    strokeWidth={2.5}
-                    animationBegin={0}
-                    animationDuration={1200}
-                    animationEasing="ease-out"
-                  />
-                  <Area
-                    dataKey="tokens"
-                    type="monotone"
-                    fill="url(#fillTokens)"
-                    stroke="hsl(var(--chart-2))"
-                    strokeWidth={2.5}
-                    animationBegin={300}
-                    animationDuration={1200}
-                    animationEasing="ease-out"
-                  />
-                </AreaChart>
+                {trendData.length === 1 ? (
+                  <BarChart data={trendData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="fillFilesBar" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="hsl(var(--chart-1))" stopOpacity={0.8} />
+                        <stop offset="95%" stopColor="hsl(var(--chart-1))" stopOpacity={0.1} />
+                      </linearGradient>
+                      <linearGradient id="fillTokensBar" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="hsl(var(--chart-2))" stopOpacity={0.8} />
+                        <stop offset="95%" stopColor="hsl(var(--chart-2))" stopOpacity={0.1} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid
+                      strokeDasharray="3 3"
+                      vertical={false}
+                      stroke="hsl(var(--border))"
+                      opacity={0.2}
+                    />
+                    <XAxis
+                      dataKey="date"
+                      tickLine={false}
+                      axisLine={false}
+                      tickMargin={12}
+                      tick={{ fontSize: 11 }}
+                      tickFormatter={(value) => {
+                        const date = new Date(value);
+                        if (timeRange === 'today' || trendData.some((t) => t.isTask)) {
+                          return date.toLocaleTimeString('zh-CN', {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          });
+                        }
+                        return date.toLocaleDateString('zh-CN', {
+                          month: 'numeric',
+                          day: 'numeric',
+                        });
+                      }}
+                    />
+                    <YAxis
+                      tickLine={false}
+                      axisLine={false}
+                      tick={{ fontSize: 11 }}
+                      tickMargin={8}
+                    />
+                    <Tooltip
+                      cursor={{ fill: 'hsl(var(--muted))', opacity: 0.2 }}
+                      contentStyle={{
+                        borderRadius: '12px',
+                        border: '1px solid hsl(var(--border))',
+                        boxShadow: '0 10px 25px rgba(0,0,0,0.1)',
+                        backgroundColor: 'hsl(var(--background))',
+                      }}
+                      labelFormatter={(value) => {
+                        return new Date(value).toLocaleString('zh-CN', {
+                          year: 'numeric',
+                          month: 'short',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        });
+                      }}
+                      formatter={(value: number, name: string) => {
+                        if (name === 'files')
+                          return [
+                            <span key="value" className="font-semibold">
+                              {value}
+                            </span>,
+                            '文件数',
+                          ];
+                        if (name === 'tokens')
+                          return [
+                            <span key="value" className="font-semibold">
+                              {value}K
+                            </span>,
+                            'Token',
+                          ];
+                        return [value, name];
+                      }}
+                    />
+                    <Legend
+                      wrapperStyle={{ fontSize: '13px', paddingTop: '16px' }}
+                      iconType="circle"
+                      formatter={(value) => {
+                        if (value === 'files') return '📁 文件数';
+                        if (value === 'tokens') return '⚡ Token (K)';
+                        return value;
+                      }}
+                    />
+                    <Bar
+                      dataKey="files"
+                      name="files"
+                      fill="url(#fillFilesBar)"
+                      radius={[4, 4, 0, 0]}
+                      maxBarSize={60}
+                    />
+                    <Bar
+                      dataKey="tokens"
+                      name="tokens"
+                      fill="url(#fillTokensBar)"
+                      radius={[4, 4, 0, 0]}
+                      maxBarSize={60}
+                    />
+                  </BarChart>
+                ) : (
+                  <AreaChart data={trendData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="fillFiles" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="hsl(var(--chart-1))" stopOpacity={0.8} />
+                        <stop offset="95%" stopColor="hsl(var(--chart-1))" stopOpacity={0.1} />
+                      </linearGradient>
+                      <linearGradient id="fillTokens" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="hsl(var(--chart-2))" stopOpacity={0.8} />
+                        <stop offset="95%" stopColor="hsl(var(--chart-2))" stopOpacity={0.1} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid
+                      strokeDasharray="3 3"
+                      vertical={false}
+                      stroke="hsl(var(--border))"
+                      opacity={0.2}
+                    />
+                    <XAxis
+                      dataKey="date"
+                      tickLine={false}
+                      axisLine={false}
+                      tickMargin={12}
+                      minTickGap={32}
+                      tick={{ fontSize: 11 }}
+                      tickFormatter={(value) => {
+                        const date = new Date(value);
+                        if (timeRange === 'today' || trendData.some((t) => t.isTask)) {
+                          return date.toLocaleTimeString('zh-CN', {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          });
+                        }
+                        return date.toLocaleDateString('zh-CN', {
+                          month: 'numeric',
+                          day: 'numeric',
+                        });
+                      }}
+                    />
+                    <YAxis
+                      tickLine={false}
+                      axisLine={false}
+                      tick={{ fontSize: 11 }}
+                      tickMargin={8}
+                    />
+                    <Tooltip
+                      cursor={{
+                        stroke: 'hsl(var(--border))',
+                        strokeWidth: 1,
+                        strokeDasharray: '5 5',
+                      }}
+                      contentStyle={{
+                        borderRadius: '12px',
+                        border: '1px solid hsl(var(--border))',
+                        boxShadow: '0 10px 25px rgba(0,0,0,0.1)',
+                        backgroundColor: 'hsl(var(--background))',
+                      }}
+                      labelFormatter={(value) => {
+                        return new Date(value).toLocaleString('zh-CN', {
+                          year: 'numeric',
+                          month: 'short',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        });
+                      }}
+                      formatter={(value: number, name: string) => {
+                        if (name === 'files')
+                          return [
+                            <span key="value" className="font-semibold">
+                              {value}
+                            </span>,
+                            '文件数',
+                          ];
+                        if (name === 'tokens')
+                          return [
+                            <span key="value" className="font-semibold">
+                              {value}K
+                            </span>,
+                            'Token',
+                          ];
+                        return [value, name];
+                      }}
+                    />
+                    <Legend
+                      wrapperStyle={{ fontSize: '13px', paddingTop: '16px' }}
+                      iconType="line"
+                      formatter={(value) => {
+                        if (value === 'files') return '📁 文件数';
+                        if (value === 'tokens') return '⚡ Token (K)';
+                        return value;
+                      }}
+                    />
+                    <Area
+                      dataKey="files"
+                      type="monotone"
+                      fill="url(#fillFiles)"
+                      stroke="hsl(var(--chart-1))"
+                      strokeWidth={2.5}
+                      animationBegin={0}
+                      animationDuration={1200}
+                      animationEasing="ease-out"
+                    />
+                    <Area
+                      dataKey="tokens"
+                      type="monotone"
+                      fill="url(#fillTokens)"
+                      stroke="hsl(var(--chart-2))"
+                      strokeWidth={2.5}
+                      animationBegin={300}
+                      animationDuration={1200}
+                      animationEasing="ease-out"
+                    />
+                  </AreaChart>
+                )}
               </ResponsiveContainer>
             ) : (
               <div className="h-[320px] flex flex-col items-center justify-center text-muted-foreground">
@@ -516,7 +649,9 @@ export const StatsView: React.FC<StatsViewProps> = ({ timeRange = 'week' }) => {
                   <TrendingUp className="w-8 h-8" />
                 </div>
                 <p className="text-sm font-medium">暂无趋势数据</p>
-                <p className="text-xs text-muted-foreground mt-1">需要至少一天的数据才能显示趋势</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  需要至少一次任务数据才能显示趋势
+                </p>
               </div>
             )}
           </CardContent>

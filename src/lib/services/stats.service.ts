@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { systemLogger } from '@/lib/logger';
+import { logger } from '@/lib/logger';
 
 // 单次任务统计记录
 export interface TaskStatsRecord {
@@ -8,7 +8,6 @@ export interface TaskStatsRecord {
   timestamp: string; // ISO 时间戳
   startTime: string; // 任务开始时间
   endTime: string; // 任务结束时间
-  duration: number; // 执行时长（毫秒）
   aiCalls: number; // AI 调用次数
   tokensUsed: number; // Token 消耗
   filesProcessed: number; // 处理文件数
@@ -28,6 +27,13 @@ export interface AggregatedStats {
   fileTypes: Record<string, number>; // 合并的文件类型统计
   dailyTrends: Array<{
     date: string; // YYYY-MM-DD
+    aiCalls: number;
+    tokensUsed: number;
+    filesProcessed: number;
+  }>;
+  taskTrends: Array<{
+    taskId: string;
+    startTime: string; // ISO string
     aiCalls: number;
     tokensUsed: number;
     filesProcessed: number;
@@ -66,7 +72,7 @@ export class StatsService {
       const data = JSON.parse(content);
       return data.records || [];
     } catch (error) {
-      systemLogger.error({ error }, '读取统计文件失败');
+      logger.error({ error }, '读取统计文件失败');
       return [];
     }
   }
@@ -78,7 +84,7 @@ export class StatsService {
     try {
       fs.writeFileSync(this.statsFilePath, JSON.stringify({ records }, null, 2), 'utf-8');
     } catch (error) {
-      systemLogger.error({ error }, '写入统计文件失败');
+      logger.error({ error }, '写入统计文件失败');
     }
   }
 
@@ -93,7 +99,7 @@ export class StatsService {
     };
     records.push(newRecord);
     this.writeRecords(records);
-    systemLogger.info({ stats: newRecord }, '任务统计已记录');
+    logger.info({ stats: newRecord }, '任务统计已记录');
   }
 
   /**
@@ -178,12 +184,24 @@ export class StatsService {
       .map(([date, data]) => ({ date, ...data }))
       .sort((a, b) => a.date.localeCompare(b.date));
 
+    // 生成任务趋势数据 (按开始时间排序)
+    const taskTrends = filteredRecords
+      .map((record) => ({
+        taskId: record.taskId,
+        startTime: record.startTime,
+        aiCalls: record.aiCalls,
+        tokensUsed: record.tokensUsed,
+        filesProcessed: record.filesProcessed,
+      }))
+      .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+
     return {
       totalAiCalls,
       totalTokensUsed,
       totalFilesProcessed,
       fileTypes,
       dailyTrends,
+      taskTrends,
     };
   }
 
@@ -215,10 +233,10 @@ export class StatsService {
       }
 
       this.writeRecords(filteredRecords);
-      systemLogger.info({ taskId }, '任务统计记录已删除');
+      logger.info({ taskId }, '任务统计记录已删除');
       return true;
     } catch (error) {
-      systemLogger.error({ error, taskId }, '删除任务统计记录失败');
+      logger.error({ error, taskId }, '删除任务统计记录失败');
       return false;
     }
   }
@@ -240,6 +258,6 @@ export class StatsService {
    */
   clearAllRecords(): void {
     this.writeRecords([]);
-    systemLogger.info('所有统计记录已清空');
+    logger.info('所有统计记录已清空');
   }
 }

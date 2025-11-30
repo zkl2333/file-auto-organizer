@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { configApi } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -16,6 +15,7 @@ import {
 } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { IconLoader2 } from '@tabler/icons-react';
+import { api, type ConfigJson } from '@/lib/api-client';
 
 // 配置类型定义
 interface AppConfig {
@@ -96,11 +96,9 @@ export const ConfigView: React.FC = () => {
   const loadConfig = async () => {
     try {
       setLoading(true);
-      const response = await configApi.getConfig();
-      if (response.success && response.data) {
-        // 适配 API 返回的数据结构
-        const configData = (response.data as any).fullConfig || response.data;
-        setConfig({ ...defaultConfig, ...configData });
+      const response = await api.getConfig();
+      if (response.json) {
+        setConfig({ ...defaultConfig, ...response.json });
       }
       setMessage({
         type: 'info',
@@ -119,7 +117,7 @@ export const ConfigView: React.FC = () => {
   const handleSave = async () => {
     try {
       setSaving(true);
-      const response = await configApi.updateConfig(config as any);
+      const response = await api.updateConfigJson(config as ConfigJson);
       if (response.success) {
         setMessage({ type: 'success', text: response.message || '保存成功' });
       } else {
