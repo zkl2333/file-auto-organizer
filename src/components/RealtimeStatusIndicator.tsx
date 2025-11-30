@@ -1,9 +1,11 @@
 'use client';
 
-import { useConnectionStatus, useSmartRealtimeUpdates } from '@/hooks/useRealtimeUpdates';
+import { useEffect, useMemo, useState, startTransition } from 'react';
+import useSWR from 'swr';
+import { api, type TaskStatus, type TaskRecord } from '@/lib/api-client';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { Wifi, WifiOff, Activity } from 'lucide-react';
+import { Activity } from 'lucide-react';
 
 interface RealtimeStatusIndicatorProps {
   className?: string;
@@ -14,34 +16,101 @@ export function RealtimeStatusIndicator({
   className,
   showText = false,
 }: RealtimeStatusIndicatorProps) {
-  const { isOnline } = useConnectionStatus();
-  const { isTaskRunning, lastUpdateTime, refreshStrategy } = useSmartRealtimeUpdates();
+  const { data: status } = useSWR<TaskStatus>('/api/status', api.getStatus, {
+    refreshInterval: 10000,
+  });
+  const isTaskRunning = status?.isRunning || false;
+
+  const { data: historyData } = useSWR<{ tasks: TaskRecord[] }>(
+    '/api/task-history',
+    api.getTaskHistory,
+    { refreshInterval: isTaskRunning ? 0 : 30000 }
+  );
+  const taskHistory = historyData?.tasks || [];
+
+  const [lastUpdateTime, setLastUpdateTime] = useState(() => Date.now());
+
+  useEffect(() => {
+    startTransition(() => {
+      setLastUpdateTime(Date.now());
+    });
+  }, [taskHistory.length]);
+
+  const refreshStrategy = useMemo(
+    () => ({
+      statusRefreshInterval: isTaskRunning ? 2000 : 10000,
+      historyRefreshInterval: isTaskRunning ? 0 : 60000,
+    }),
+    [isTaskRunning]
+  );
+  const mounted = typeof window !== 'undefined';
+
+  // 避免 hydration 错误：在服务器端使用默认值
+  const safeIsTaskRunning = mounted ? isTaskRunning : false;
 
   const getStatusColor = () => {
-    if (!isOnline) return 'destructive';
-    if (isTaskRunning) return 'default';
+    if (safeIsTaskRunning) return 'default';
     return 'secondary';
   };
 
   const getStatusIcon = () => {
-    if (!isOnline) return <WifiOff className="w-3 h-3" />;
-    if (isTaskRunning) return <Activity className="w-3 h-3 animate-pulse" />;
-    return <Wifi className="w-3 h-3" />;
+    if (safeIsTaskRunning) return <Activity className="w-3 h-3 animate-pulse" />;
+    return null;
   };
 
   const getStatusText = () => {
-    if (!isOnline) return '离线';
-    if (isTaskRunning) return '实时更新中';
-    return '在线';
+    if (safeIsTaskRunning) return '实时更新中';
+    return '空闲';
   };
 
-  const getTooltipText = () => {
-    if (!isOnline) return '网络连接已断开';
-    if (isTaskRunning) {
-      return `任务运行中，更新频率: ${refreshStrategy.statusRefreshInterval}ms`;
+  // 使用 useMemo 稳定 tooltip 内容，避免频繁更新导致无限循环
+  // 对于时间戳，我们使用 Math.floor 来降低更新频率（每秒更新一次）
+  const stableLastUpdateTime = useMemo(() => {
+    return Math.floor(lastUpdateTime / 1000) * 1000;
+  }, [lastUpdateTime]);
+
+  const tooltipContent = useMemo(() => {
+    if (safeIsTaskRunning) {
+      return (
+        <>
+          <p className="text-sm">任务运行中，更新频率: {refreshStrategy.statusRefreshInterval}ms</p>
+          <div className="text-xs text-muted-foreground mt-1">
+            <div>• 状态更新: {refreshStrategy.statusRefreshInterval}ms</div>
+            <div>• 历史更新: {refreshStrategy.historyRefreshInterval}ms</div>
+          </div>
+        </>
+      );
     }
-    return `最后更新: ${new Date(lastUpdateTime).toLocaleTimeString('zh-CN')}`;
-  };
+    return (
+      <>
+        <p className="text-sm">
+          最后更新: {new Date(stableLastUpdateTime).toLocaleTimeString('zh-CN')}
+        </p>
+        <div className="text-xs text-muted-foreground mt-1">
+          <div>• 状态更新: {refreshStrategy.statusRefreshInterval}ms</div>
+          <div>• 历史更新: {refreshStrategy.historyRefreshInterval}ms</div>
+        </div>
+      </>
+    );
+  }, [
+    safeIsTaskRunning,
+    refreshStrategy.statusRefreshInterval,
+    refreshStrategy.historyRefreshInterval,
+    stableLastUpdateTime,
+  ]);
+
+  // 只在客户端渲染 Tooltip，避免 hydration 问题
+  if (!mounted) {
+    return (
+      <Badge
+        variant={getStatusColor()}
+        className={`${className} gap-1.5 cursor-help transition-all duration-200`}
+      >
+        {getStatusIcon()}
+        {showText && <span className="text-xs">{getStatusText()}</span>}
+      </Badge>
+    );
+  }
 
   return (
     <Tooltip>
@@ -52,37 +121,48 @@ export function RealtimeStatusIndicator({
         >
           {getStatusIcon()}
           {showText && <span className="text-xs">{getStatusText()}</span>}
-          {isTaskRunning && <div className="w-2 h-2 bg-green-500 rounded-full animate-ping" />}
+          {safeIsTaskRunning && <div className="w-2 h-2 bg-green-500 rounded-full animate-ping" />}
         </Badge>
       </TooltipTrigger>
-      <TooltipContent>
-        <p className="text-sm">{getTooltipText()}</p>
-        <div className="text-xs text-muted-foreground mt-1">
-          {isOnline && (
-            <>
-              <div>• 状态更新: {refreshStrategy.statusRefreshInterval}ms</div>
-              <div>• 历史更新: {refreshStrategy.historyRefreshInterval}ms</div>
-            </>
-          )}
-        </div>
-      </TooltipContent>
+      <TooltipContent>{tooltipContent}</TooltipContent>
     </Tooltip>
   );
 }
 
 // 实时更新状态面板
 export function RealtimeStatusPanel() {
-  const { isOnline } = useConnectionStatus();
-  const { isTaskRunning, lastUpdateTime, refreshStrategy } = useSmartRealtimeUpdates();
+  const { data: status } = useSWR<TaskStatus>('/api/status', api.getStatus, {
+    refreshInterval: 10000,
+  });
+  const isTaskRunning = status?.isRunning || false;
+
+  const { data: historyData } = useSWR<{ tasks: TaskRecord[] }>(
+    '/api/task-history',
+    api.getTaskHistory,
+    { refreshInterval: isTaskRunning ? 0 : 30000 }
+  );
+  const taskHistory = historyData?.tasks || [];
+
+  const [lastUpdateTime, setLastUpdateTime] = useState(() => Date.now());
+
+  useEffect(() => {
+    startTransition(() => {
+      setLastUpdateTime(Date.now());
+    });
+  }, [taskHistory.length]);
+
+  const refreshStrategy = useMemo(
+    () => ({
+      statusRefreshInterval: isTaskRunning ? 2000 : 10000,
+      historyRefreshInterval: isTaskRunning ? 0 : 60000,
+    }),
+    [isTaskRunning]
+  );
 
   return (
     <div className="p-4 border rounded-lg bg-muted/20 space-y-3">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-medium">实时更新状态</h3>
-        <Badge variant={isOnline ? 'default' : 'destructive'} className="gap-1">
-          {isOnline ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
-          {isOnline ? '在线' : '离线'}
-        </Badge>
       </div>
 
       <div className="space-y-2 text-sm">
@@ -111,22 +191,6 @@ export function RealtimeStatusPanel() {
             <span>任务正在进行实时监控...</span>
           </div>
         )}
-      </div>
-    </div>
-  );
-}
-
-// 网络状态横幅
-export function NetworkStatusBanner() {
-  const { isOnline } = useConnectionStatus();
-
-  if (isOnline) return null;
-
-  return (
-    <div className="w-full bg-destructive/10 border-b border-destructive/20 p-2">
-      <div className="container mx-auto flex items-center gap-2 text-sm text-destructive">
-        <WifiOff className="w-4 h-4" />
-        <span>网络连接已断开，部分功能可能无法正常使用</span>
       </div>
     </div>
   );

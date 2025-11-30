@@ -2,7 +2,8 @@
 
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useUsageStats } from '@/hooks/useApi';
+import useSWR from 'swr';
+import { api, type UsageStats } from '@/lib/api-client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -58,7 +59,16 @@ export const StatsView: React.FC<StatsViewProps> = ({ timeRange = 'week' }) => {
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   // 获取使用统计数据（按时间范围）
-  const { data: usageStats, error, isLoading: loading, mutate } = useUsageStats(timeRange);
+  const {
+    data: usageStats,
+    error,
+    isLoading: loading,
+    mutate,
+  } = useSWR<UsageStats>(
+    `/api/usage-stats?range=${timeRange}`,
+    () => api.getUsageStats(timeRange),
+    { refreshInterval: 10000 }
+  );
 
   // 移动端自动切换到今日视图
   useEffect(() => {

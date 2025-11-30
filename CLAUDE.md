@@ -13,20 +13,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## 开发命令
 
 ```bash
-# 开发环境（使用自定义服务器）
+# 开发环境
 npm run dev
-
-# 开发环境（使用默认 Next.js 服务器）
-npm run dev:default
 
 # 构建生产版本
 npm run build
 
 # 生产环境启动
 npm start
-
-# 生产环境启动（默认 Next.js）
-npm run start:default
 
 # 代码检查
 npm run lint

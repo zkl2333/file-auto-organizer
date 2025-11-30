@@ -1,9 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { useTaskHistoryRealtime, useSmartRealtimeUpdates } from '@/hooks/useRealtimeUpdates';
-import { api } from '@/lib/api-client';
-import type { TaskRecord } from '@/lib/api-client';
+import useSWR from 'swr';
+import { api, type TaskRecord } from '@/lib/api-client';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -164,9 +163,16 @@ export const TaskHistoryView: React.FC<{ onViewDetail?: (taskId: string) => void
 }) => {
   const router = useRouter();
 
-  // 使用智能实时更新
-  const { taskHistory, error, isLoading, refreshHistory } = useTaskHistoryRealtime();
-  useSmartRealtimeUpdates(); // 用于实时更新，但不需要返回值
+  // 使用 useSWR 获取任务历史
+  const {
+    data: historyData,
+    error,
+    isLoading,
+    mutate: refreshHistory,
+  } = useSWR<{ tasks: TaskRecord[] }>('/api/task-history', api.getTaskHistory, {
+    refreshInterval: 30000,
+  });
+  const taskHistory = historyData?.tasks || [];
   const [pageIndex, setPageIndex] = useState(0);
   const [pageSize, setPageSize] = useState(10);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -291,7 +297,7 @@ export const TaskHistoryView: React.FC<{ onViewDetail?: (taskId: string) => void
               删除 ({selectedIds.size})
             </Button>
           )}
-          <Button variant="outline" size="sm" onClick={refreshHistory} disabled={isLoading}>
+          <Button variant="outline" size="sm" onClick={() => refreshHistory()} disabled={isLoading}>
             <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
             <span className="hidden lg:inline">刷新</span>
           </Button>

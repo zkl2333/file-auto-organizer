@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
-import { useSystemStatusRealtime, useTaskCompletionNotification } from '@/hooks/useRealtimeUpdates';
-import { api } from '@/lib/api-client';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import useSWR from 'swr';
+import { api, type TaskStatus } from '@/lib/api-client';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -24,12 +24,35 @@ export const TriggerView: React.FC = () => {
     text: string;
   } | null>(null);
 
-  // 使用增强的实时状态管理
-  const { status, refreshStatus } = useSystemStatusRealtime();
+  // 使用 useSWR 获取状态
+  const { data: status, mutate: refreshStatus } = useSWR<TaskStatus>('/api/status', api.getStatus, {
+    refreshInterval: 10000,
+  });
   const cronEnabled = status?.cronEnabled;
 
   // 任务完成通知
-  useTaskCompletionNotification(status?.currentTaskId || '');
+  const previousStatusRef = useRef<string | null>(null);
+  const currentTaskId = status?.currentTaskId || '';
+
+  const onTaskCompleted = useCallback((taskId: string) => {
+    if ('Notification' in window && Notification.permission === 'granted') {
+      new Notification('文件整理任务完成', {
+        body: `任务 ${taskId} 已完成`,
+        icon: '/favicon.ico',
+      });
+    }
+    console.log(`任务 ${taskId} 已完成`);
+  }, []);
+
+  useEffect(() => {
+    if (status?.currentTaskId === currentTaskId && currentTaskId) {
+      const currentStatus = status?.isRunning ? 'running' : 'completed';
+      if (previousStatusRef.current === 'running' && currentStatus === 'completed') {
+        onTaskCompleted(currentTaskId);
+      }
+      previousStatusRef.current = currentStatus;
+    }
+  }, [status?.isRunning, status?.currentTaskId, currentTaskId, onTaskCompleted]);
 
   const handleTrigger = async () => {
     setLoading(true);

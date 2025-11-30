@@ -6,7 +6,6 @@ import { SiteHeader } from '@/components/site-header';
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
 import { Toaster } from 'sonner';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
-import { NetworkStatusBanner } from '@/components/RealtimeStatusIndicator';
 import { initializeLogging } from '@/lib/log-init';
 import './globals.css';
 
@@ -57,7 +56,6 @@ export default function RootLayout({
           >
             <AppSidebar variant="inset" />
             <SidebarInset>
-              <NetworkStatusBanner />
               <SiteHeader />
               <div className="flex flex-1 flex-col">
                 <div className="flex flex-1 flex-col gap-2">

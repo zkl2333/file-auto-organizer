@@ -1,6 +1,7 @@
 'use client';
 
-import { useStatus, useStats } from '@/hooks/useApi';
+import useSWR from 'swr';
+import { api, type TaskStatus, type Stats } from '@/lib/api-client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -19,8 +20,10 @@ import {
 } from 'lucide-react';
 
 export default function StatsLayout({ children }: { children: React.ReactNode }) {
-  const { data: status } = useStatus();
-  const { data: stats } = useStats();
+  const { data: status } = useSWR<TaskStatus>('/api/status', api.getStatus, {
+    refreshInterval: 10000,
+  });
+  const { data: stats } = useSWR<Stats>('/api/stats', api.getStats);
 
   const formatTime = (isoTime: string | null | undefined) => {
     if (!isoTime) return '未执行';

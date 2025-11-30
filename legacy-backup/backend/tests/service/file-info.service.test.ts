@@ -216,9 +216,14 @@ describe('FileInfoService 核心功能测试', () => {
         const isText = service.checkIsTextFile(testFile);
         expect(isText).toBe(!expectBinary);
       } finally {
-        // 清理测试文件
-        if (fs.existsSync(testFile)) {
-          fs.unlinkSync(testFile);
+        // 清理测试文件，增加重试机制
+        try {
+          if (fs.existsSync(testFile)) {
+            fs.unlinkSync(testFile);
+          }
+        } catch (error) {
+          // 忽略清理错误，Windows 上可能文件正在被使用
+          console.warn(`Warning: Could not delete test file ${testFile}:`, error);
         }
       }
     });

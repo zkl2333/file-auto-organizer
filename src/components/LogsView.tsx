@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { useLogs } from '@/hooks/useApi';
+import useSWR from 'swr';
+import { api } from '@/lib/api-client';
 import {
   Select,
   SelectContent,
@@ -41,7 +42,7 @@ export const LogsView: React.FC = () => {
     error,
     isLoading,
     mutate,
-  } = useLogs(type, 500, {
+  } = useSWR<{ logs: string[] }>(`/api/logs?type=${type}&limit=500`, () => api.getLogs(type, 500), {
     refreshInterval: autoRefresh ? 5000 : 0,
   });
 

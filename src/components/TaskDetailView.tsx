@@ -1,8 +1,14 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useTaskDetail, useTaskLogs, useTaskFilesRealtime } from '@/hooks/useApi';
-import { type ProcessedFile, type FileProcessStatus } from '@/lib/api-client';
+import useSWR from 'swr';
+import {
+  api,
+  type ProcessedFile,
+  type FileProcessStatus,
+  type TaskRecord,
+  type TaskFileList,
+} from '@/lib/api-client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -97,16 +103,26 @@ export const TaskDetailView: React.FC<{
   const [selectedFileType, setSelectedFileType] = useState('all');
   const [expandedLogs, setExpandedLogs] = useState<Set<number>>(new Set());
 
-  const { data: task, error, isLoading } = useTaskDetail(taskId);
-  const { data: logsData, isLoading: logsLoading } = useTaskLogs(taskId, currentLogType, 500);
+  const {
+    data: task,
+    error,
+    isLoading,
+  } = useSWR<TaskRecord>(
+    taskId ? `/api/task/${taskId}` : null,
+    taskId ? () => api.getTaskDetail(taskId) : null
+  );
+  const { data: logsData, isLoading: logsLoading } = useSWR<{ logs: string[] }>(
+    taskId ? `/api/task/${taskId}/logs?type=${currentLogType}&limit=500` : null,
+    taskId ? () => api.getTaskLogs(taskId, currentLogType, 500) : null
+  );
 
   // 使用实时轮询获取文件列表
   // 如果任务状态是 running，则启用轮询；否则禁用
   const taskIsRunning = task?.status === 'running';
-  const { data: taskFiles, isLoading: filesLoading } = useTaskFilesRealtime(
-    taskId,
-    2000, // 每2秒轮询一次
-    taskIsRunning // 只在任务运行时轮询
+  const { data: taskFiles, isLoading: filesLoading } = useSWR<TaskFileList>(
+    taskId ? `/api/task/${taskId}/files` : null,
+    taskId ? () => api.getTaskFiles(taskId) : null,
+    { refreshInterval: taskIsRunning ? 2000 : 0 }
   );
 
   const logs = logsData?.logs || [];

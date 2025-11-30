@@ -350,7 +350,8 @@ export class MainService {
   private saveTaskRecord(
     taskId: string,
     startTime: number,
-    result: Omit<TaskResult, 'taskId'>
+    result: Omit<TaskResult, 'taskId'>,
+    aiCalls: number = 0
   ): void {
     try {
       this.statsService.recordTaskStats({
@@ -358,7 +359,7 @@ export class MainService {
         startTime: new Date(startTime).toISOString(),
         endTime: new Date().toISOString(),
         duration: result.duration,
-        aiCalls: 0, // TODO: 实际的 AI 调用次数
+        aiCalls,
         tokensUsed: result.tokensUsed,
         filesProcessed: result.totalProcessed,
         similarityMatched: result.similarityMatched,
@@ -427,9 +428,13 @@ export class MainService {
 
       mainLogger.info({ taskId, fileCount: filesToProcess.length }, '发现待处理文件');
 
-      // 统计文件类型
+      // 统计文件类型和处理方式
       const fileTypes: Record<string, number> = {};
       const processedFiles: ProcessedFile[] = [];
+      let similarityMatchedCount = 0;
+      let aiClassifiedCount = 0;
+      let totalTokensUsed = 0;
+      let aiCallsCount = 0;
 
       for (const filePath of filesToProcess) {
         try {
@@ -447,6 +452,16 @@ export class MainService {
           const targetPath = this.generateTargetPath(fileName, fileType, processMethod);
           const score = this.generateConfidenceScore(processMethod);
           const reasoning = this.generateReasoning(processMethod, fileName, fileType);
+
+          // 累计统计数据
+          if (processMethod === 'similarity') {
+            similarityMatchedCount++;
+          } else if (processMethod === 'ai') {
+            aiClassifiedCount++;
+            aiCallsCount++;
+            // 模拟 token 消耗：每个AI分类消耗 100-500 tokens
+            totalTokensUsed += Math.floor(100 + Math.random() * 400);
+          }
 
           // 创建文件记录 - 兼容旧版格式
           const processedFile: ProcessedFile = {
@@ -503,11 +518,11 @@ export class MainService {
 
       const result: TaskResult = {
         taskId,
-        similarityMatched: 0,
-        aiClassified: 0,
+        similarityMatched: similarityMatchedCount,
+        aiClassified: aiClassifiedCount,
         totalProcessed: processedFiles.length,
         duration: Date.now() - startTime,
-        tokensUsed: 0,
+        tokensUsed: totalTokensUsed,
         fileTypes,
         status: 'success',
       };
@@ -516,6 +531,9 @@ export class MainService {
         {
           taskId,
           totalProcessed: result.totalProcessed,
+          similarityMatched: result.similarityMatched,
+          aiClassified: result.aiClassified,
+          tokensUsed: result.tokensUsed,
           duration: result.duration,
           fileTypes,
         },
@@ -523,7 +541,7 @@ export class MainService {
       );
 
       // 保存任务记录
-      this.saveTaskRecord(taskId, startTime, result);
+      this.saveTaskRecord(taskId, startTime, result, aiCallsCount);
 
       return result;
     } catch (error) {
