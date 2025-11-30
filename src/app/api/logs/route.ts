@@ -5,6 +5,7 @@ import { readLogFiles } from '@/lib/services/log.service';
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
+    void request; // 标记为已使用
     const type = searchParams.get('type') || 'system';
     const limit = parseInt(searchParams.get('limit') || '200');
     const taskId = searchParams.get('taskId');

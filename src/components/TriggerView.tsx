@@ -1,7 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { useStatus } from '@/hooks/useApi';
+import React, { useState } from 'react';
 import { useSystemStatusRealtime, useTaskCompletionNotification } from '@/hooks/useRealtimeUpdates';
 import { api } from '@/lib/api-client';
 import { Button } from '@/components/ui/button';
@@ -26,7 +25,7 @@ export const TriggerView: React.FC = () => {
   } | null>(null);
 
   // 使用增强的实时状态管理
-  const { status, isLoading: statusLoading, refreshStatus } = useSystemStatusRealtime();
+  const { status, refreshStatus } = useSystemStatusRealtime();
   const cronEnabled = status?.cronEnabled;
 
   // 任务完成通知

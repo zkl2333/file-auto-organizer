@@ -1,10 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { systemLogger } from '@/lib/logger';
 import { MainService } from '@/lib/services/main.service';
 import { StatsService } from '@/lib/services/stats.service';
 
 // GET /api/task-history - 获取所有任务历史
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     const statsService = new StatsService();
     const runningStatus = MainService.getRunningStatus();

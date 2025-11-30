@@ -5,6 +5,7 @@ import { StatsService } from '@/lib/services/stats.service';
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
+    void request; // 标记为已使用
     const range = (searchParams.get('range') || 'all') as 'today' | 'week' | 'month' | 'all';
     const includeDryRun = searchParams.get('includeDryRun') === 'true';
 

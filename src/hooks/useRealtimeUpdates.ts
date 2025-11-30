@@ -4,7 +4,7 @@ import { useStatus, useTaskHistory } from '@/hooks/useApi';
 /**
  * 系统状态实时更新 Hook
  */
-export function useSystemStatusRealtime(interval: number = 5000) {
+export function useSystemStatusRealtime(_interval: number = 5000) {
   const { data: status, error, isLoading, mutate } = useStatus();
 
   // 手动刷新状态
@@ -148,6 +148,7 @@ export function useConnectionStatus() {
         window.removeEventListener('offline', handleOffline);
       };
     }
+    return undefined;
   }, []);
 
   return {

@@ -6,7 +6,6 @@ import {
   DashboardStats,
   TaskConfig,
   FileProcessStatus,
-  RouteParams,
 } from '@/types';
 
 // API 基础配置

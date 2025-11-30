@@ -4,7 +4,7 @@ import { MainService } from '@/lib/services/main.service';
 
 // GET /api/task-files/[taskId] - 获取指定任务的文件处理结果
 export async function GET(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ taskId: string }> }
 ) {
   try {
