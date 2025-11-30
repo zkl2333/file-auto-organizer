@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { MainService } from '@/lib/services/main.service';
+import { taskManager } from '@/lib/task-manager';
 import { systemLogger } from '@/lib/logger';
 
 // POST /api/trigger - 触发任务执行
@@ -8,32 +8,33 @@ export async function POST(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const dryRun = searchParams.get('dryRun') === 'true';
 
-    // 检查是否有任务正在运行
-    const runningStatus = MainService.getRunningStatus();
-    if (runningStatus.isRunning) {
+    // 检查是否可以运行任务
+    if (!taskManager.canRunTask()) {
+      const runningTask = taskManager.getRunningTask();
       return NextResponse.json({
         success: false,
-        message: `任务正在执行中（任务ID: ${runningStatus.taskId}），请稍候`,
+        message: `任务正在执行中（任务ID: ${runningTask?.taskId}），请稍候`,
       });
     }
 
-    // 创建服务实例并触发任务
-    const service = new MainService();
+    // 创建任务
+    const task = taskManager.createTask({
+      dryRun,
+      triggeredBy: 'api',
+    });
 
     // 在后台执行任务，不阻塞响应
-    service
-      .runOnce(dryRun)
-      .then((stats) => {
+    taskManager
+      .runTask(task.taskId)
+      .then((result) => {
         systemLogger.info(
           {
-            taskId: stats.taskId,
-            stats,
+            taskId: result.taskId,
+            result,
             dryRun,
           },
           '任务执行完成'
         );
-
-        // 这里可以添加统计记录逻辑，类似原后端的实现
       })
       .catch((error) => {
         systemLogger.error(
@@ -49,6 +50,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       message: `任务已触发，正在后台执行${dryRun ? ' (dry-run模式)' : ''}`,
+      taskId: task.taskId,
     });
   } catch (error) {
     systemLogger.error(

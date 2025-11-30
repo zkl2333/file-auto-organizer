@@ -1,46 +1,33 @@
 import { NextResponse } from 'next/server';
 import { systemLogger } from '@/lib/logger';
-import { MainService } from '@/lib/services/main.service';
-import { StatsService } from '@/lib/services/stats.service';
+import { taskManager } from '@/lib/task-manager';
 
 // GET /api/task-history - 获取所有任务历史
 export async function GET() {
   try {
-    const statsService = new StatsService();
-    const runningStatus = MainService.getRunningStatus();
+    // 直接从 TaskManager 获取所有任务
+    const allTasks = taskManager.getAllTasks();
 
-    // 获取已保存的任务历史
-    let tasks = statsService.getAllTaskRecords();
-
-    // 如果有运行中的任务，添加到列表或更新现有记录
-    if (runningStatus.isRunning && runningStatus.taskId && runningStatus.startTime) {
-      const runningTask = {
-        taskId: runningStatus.taskId,
-        timestamp: new Date(runningStatus.startTime).toISOString(),
-        startTime: new Date(runningStatus.startTime).toISOString(),
-        endTime: '',
-        duration: Date.now() - runningStatus.startTime,
-        aiCalls: 0,
-        tokensUsed: 0,
-        filesProcessed: 0,
-        similarityMatched: 0,
-        aiClassified: 0,
-        fileTypes: {},
-        status: 'running' as const,
-        dryRun: runningStatus.dryRun,
+    // 转换为API响应格式
+    const tasks = allTasks.map((task) => {
+      const snapshot = task.getSnapshot();
+      return {
+        taskId: snapshot.taskId,
+        timestamp: new Date(snapshot.startTime).toISOString(),
+        startTime: new Date(snapshot.startTime).toISOString(),
+        endTime: snapshot.endTime ? new Date(snapshot.endTime).toISOString() : '',
+        duration: snapshot.duration,
+        aiCalls: snapshot.stats.aiCalls,
+        tokensUsed: snapshot.stats.tokensUsed,
+        filesProcessed: snapshot.stats.totalProcessed,
+        similarityMatched: snapshot.stats.similarityMatched,
+        aiClassified: snapshot.stats.aiClassified,
+        fileTypes: snapshot.stats.fileTypes,
+        status: snapshot.status,
+        dryRun: snapshot.dryRun,
+        errorMessage: snapshot.errorMessage,
       };
-
-      // 检查是否已存在该任务的记录，如果存在则更新为运行状态
-      const existingIndex = tasks.findIndex((task) => task.taskId === runningStatus.taskId);
-      if (existingIndex >= 0) {
-        tasks[existingIndex] = { ...tasks[existingIndex], ...runningTask };
-      } else {
-        tasks.push(runningTask);
-      }
-    }
-
-    // 按时间倒序排列
-    tasks.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    });
 
     return NextResponse.json({ tasks });
   } catch (error) {

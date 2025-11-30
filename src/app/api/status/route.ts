@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { MainService } from '@/lib/services/main.service';
+import { taskManager } from '@/lib/task-manager';
 import { systemLogger } from '@/lib/logger';
 import { getConfig } from '@/lib/config';
 
@@ -9,30 +9,31 @@ export async function GET() {
     // 获取当前配置快照
     const config = getConfig();
 
-    // 获取任务运行状态
-    const runningStatus = MainService.getRunningStatus();
+    // 获取运行中的任务
+    const runningTask = taskManager.getRunningTask();
 
     // 构造状态响应
     const statusResponse = {
-      isRunning: runningStatus.isRunning,
-      currentTaskId: runningStatus.taskId,
+      isRunning: runningTask !== null,
+      currentTaskId: runningTask?.taskId ?? null,
       lastRunTime: null, // 后续可以实现历史记录功能
       lastRunStats: null, // 后续可以实现历史记录功能
       cronEnabled: config.cron?.enabled ?? false,
-      lastTask: runningStatus.isRunning
+      lastTask: runningTask
         ? {
-            taskId: runningStatus.taskId,
-            startTime: new Date(runningStatus.startTime!).toISOString(),
+            taskId: runningTask.taskId,
+            startTime: new Date(runningTask.startTime).toISOString(),
             endTime: '',
-            duration: Date.now() - runningStatus.startTime!,
-            aiCalls: 0,
-            tokensUsed: 0,
-            filesProcessed: 0,
-            similarityMatched: 0,
-            aiClassified: 0,
-            fileTypes: {},
+            duration: runningTask.getDuration(),
+            aiCalls: runningTask.stats.aiCalls,
+            tokensUsed: runningTask.stats.tokensUsed,
+            filesProcessed: runningTask.stats.totalProcessed,
+            similarityMatched: runningTask.stats.similarityMatched,
+            aiClassified: runningTask.stats.aiClassified,
+            fileTypes: runningTask.stats.fileTypes,
             status: 'running',
-            dryRun: runningStatus.dryRun,
+            dryRun: runningTask.dryRun,
+            progress: runningTask.progress,
           }
         : null,
     };

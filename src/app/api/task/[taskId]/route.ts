@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { systemLogger } from '@/lib/logger';
-import { MainService } from '@/lib/services/main.service';
+import { taskManager } from '@/lib/task-manager';
 
 // GET /api/task/[taskId] - 获取指定任务的详细信息
 export async function GET(
@@ -17,16 +17,34 @@ export async function GET(
       );
     }
 
-    const mainService = new MainService();
-    const taskDetail = await mainService.getTaskDetail(taskId);
+    const task = taskManager.getTask(taskId);
 
-    if (!taskDetail) {
+    if (!task) {
       return NextResponse.json({ error: 'Not Found', message: '任务不存在' }, { status: 404 });
     }
 
     systemLogger.info({ taskId }, '获取任务详情成功');
 
-    return NextResponse.json(taskDetail);
+    // 转换为前端期望的格式（与任务历史API保持一致）
+    const snapshot = task.getSnapshot();
+    const response = {
+      taskId: snapshot.taskId,
+      timestamp: new Date(snapshot.startTime).toISOString(),
+      startTime: new Date(snapshot.startTime).toISOString(),
+      endTime: snapshot.endTime ? new Date(snapshot.endTime).toISOString() : '',
+      duration: snapshot.duration,
+      aiCalls: snapshot.stats.aiCalls,
+      tokensUsed: snapshot.stats.tokensUsed,
+      filesProcessed: snapshot.stats.totalProcessed,
+      similarityMatched: snapshot.stats.similarityMatched,
+      aiClassified: snapshot.stats.aiClassified,
+      fileTypes: snapshot.stats.fileTypes,
+      status: snapshot.status,
+      dryRun: snapshot.dryRun,
+      errorMessage: snapshot.errorMessage,
+    };
+
+    return NextResponse.json(response);
   } catch (error) {
     systemLogger.error(
       {
@@ -61,12 +79,14 @@ export async function DELETE(
       );
     }
 
-    const mainService = new MainService();
-    const result = await mainService.deleteTask(taskId);
+    await taskManager.deleteTask(taskId);
 
     systemLogger.info({ taskId }, '删除任务成功');
 
-    return NextResponse.json(result);
+    return NextResponse.json({
+      success: true,
+      message: '任务删除成功',
+    });
   } catch (error) {
     systemLogger.error(
       {

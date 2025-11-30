@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { systemLogger } from '@/lib/logger';
-import { MainService } from '@/lib/services/main.service';
+import path from 'node:path';
+import fs from 'node:fs';
 
 // GET /api/task/[taskId]/logs - 获取指定任务的日志
 export async function GET(
@@ -21,8 +22,18 @@ export async function GET(
       );
     }
 
-    const mainService = new MainService();
-    const logs = await mainService.getTaskLogs(taskId, type, limit);
+    // 读取任务日志文件（新的目录结构：logs/tasks/{taskId}/{type}.log）
+    const logFilePath = path.join(process.cwd(), 'logs', 'tasks', taskId, `${type}.log`);
+
+    let logs: string[] = [];
+
+    if (fs.existsSync(logFilePath)) {
+      const logContent = fs.readFileSync(logFilePath, 'utf-8');
+      const logLines = logContent.split('\n').filter((line: string) => line.trim());
+
+      // 返回指定数量的最新日志（倒序）
+      logs = logLines.slice(-limit).reverse();
+    }
 
     systemLogger.info({ taskId, type, logCount: logs.length }, '获取任务日志成功');
 

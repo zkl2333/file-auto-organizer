@@ -43,34 +43,24 @@ export function RealtimeStatusIndicator({
     }),
     [isTaskRunning]
   );
-  const mounted = typeof window !== 'undefined';
-
-  // 避免 hydration 错误：在服务器端使用默认值
-  const safeIsTaskRunning = mounted ? isTaskRunning : false;
 
   const getStatusColor = () => {
-    if (safeIsTaskRunning) return 'default';
+    if (isTaskRunning) return 'default';
     return 'secondary';
   };
 
   const getStatusIcon = () => {
-    if (safeIsTaskRunning) return <Activity className="w-3 h-3 animate-pulse" />;
+    if (isTaskRunning) return <Activity className="w-3 h-3 animate-pulse" />;
     return null;
   };
 
   const getStatusText = () => {
-    if (safeIsTaskRunning) return '实时更新中';
+    if (isTaskRunning) return '实时更新中';
     return '空闲';
   };
 
-  // 使用 useMemo 稳定 tooltip 内容，避免频繁更新导致无限循环
-  // 对于时间戳，我们使用 Math.floor 来降低更新频率（每秒更新一次）
-  const stableLastUpdateTime = useMemo(() => {
-    return Math.floor(lastUpdateTime / 1000) * 1000;
-  }, [lastUpdateTime]);
-
   const tooltipContent = useMemo(() => {
-    if (safeIsTaskRunning) {
+    if (isTaskRunning) {
       return (
         <>
           <p className="text-sm">任务运行中，更新频率: {refreshStrategy.statusRefreshInterval}ms</p>
@@ -83,9 +73,7 @@ export function RealtimeStatusIndicator({
     }
     return (
       <>
-        <p className="text-sm">
-          最后更新: {new Date(stableLastUpdateTime).toLocaleTimeString('zh-CN')}
-        </p>
+        <p className="text-sm">最后更新: {new Date(lastUpdateTime).toLocaleTimeString('zh-CN')}</p>
         <div className="text-xs text-muted-foreground mt-1">
           <div>• 状态更新: {refreshStrategy.statusRefreshInterval}ms</div>
           <div>• 历史更新: {refreshStrategy.historyRefreshInterval}ms</div>
@@ -93,35 +81,22 @@ export function RealtimeStatusIndicator({
       </>
     );
   }, [
-    safeIsTaskRunning,
+    isTaskRunning,
     refreshStrategy.statusRefreshInterval,
     refreshStrategy.historyRefreshInterval,
-    stableLastUpdateTime,
+    lastUpdateTime,
   ]);
-
-  // 只在客户端渲染 Tooltip，避免 hydration 问题
-  if (!mounted) {
-    return (
-      <Badge
-        variant={getStatusColor()}
-        className={`${className} gap-1.5 cursor-help transition-all duration-200`}
-      >
-        {getStatusIcon()}
-        {showText && <span className="text-xs">{getStatusText()}</span>}
-      </Badge>
-    );
-  }
 
   return (
     <Tooltip>
-      <TooltipTrigger asChild>
+      <TooltipTrigger className={className}>
         <Badge
           variant={getStatusColor()}
-          className={`${className} gap-1.5 cursor-help transition-all duration-200`}
+          className="gap-1.5 cursor-help transition-all duration-200"
         >
           {getStatusIcon()}
           {showText && <span className="text-xs">{getStatusText()}</span>}
-          {safeIsTaskRunning && <div className="w-2 h-2 bg-green-500 rounded-full animate-ping" />}
+          {isTaskRunning && <div className="w-2 h-2 bg-green-500 rounded-full animate-ping" />}
         </Badge>
       </TooltipTrigger>
       <TooltipContent>{tooltipContent}</TooltipContent>
