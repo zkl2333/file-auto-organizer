@@ -1,37 +1,39 @@
 import { logger, flushLogs } from './logger';
 
+let initialized = false;
+
 /**
  * 日志系统初始化
- * 在应用启动时调用，记录启动信息
+ * 在 Next.js 服务器启动时通过 instrumentation.ts 调用
  */
-
 export function initializeLogging() {
-  // 记录应用启动
+  // 防止重复初始化
+  if (initialized) return;
+  initialized = true;
+
+  // 记录服务器启动
   logger.info(
     {
       nodeEnv: process.env.NODE_ENV,
-      version: process.env.npm_package_version || 'unknown',
       platform: process.platform,
       arch: process.arch,
       pid: process.pid,
     },
-    '应用启动'
+    'Next.js 服务器启动'
   );
 
-  // 设置优雅关闭处理
-  const setupGracefulShutdown = (signal: string) => {
-    logger.info({ signal }, `收到 ${signal} 信号，准备关闭应用`);
+  // 记录关闭信号（只记录日志，不主动退出，让 Next.js 处理）
+  process.once('SIGINT', () => {
+    logger.info({ signal: 'SIGINT' }, '收到终止信号');
+    flushLogs();
+  });
 
-    setTimeout(() => {
-      flushLogs();
-      logger.info('应用已关闭');
-      process.exit(0);
-    }, 1000);
-  };
+  process.once('SIGTERM', () => {
+    logger.info({ signal: 'SIGTERM' }, '收到终止信号');
+    flushLogs();
+  });
 
-  process.on('SIGINT', () => setupGracefulShutdown('SIGINT'));
-  process.on('SIGTERM', () => setupGracefulShutdown('SIGTERM'));
-
+  // 记录未捕获异常（只记录，不退出）
   process.on('uncaughtException', (error) => {
     logger.error(
       {
@@ -41,50 +43,19 @@ export function initializeLogging() {
       },
       '未捕获异常'
     );
-
-    setTimeout(() => {
-      flushLogs();
-      process.exit(1);
-    }, 1000);
+    flushLogs();
   });
 
-  process.on('unhandledRejection', (reason, promise) => {
+  // 记录未处理的 Promise 拒绝
+  process.on('unhandledRejection', (reason) => {
     logger.error(
       {
-        reason: String(reason),
-        promise: promise.toString(),
-        type: typeof reason,
+        reason: reason instanceof Error ? reason.message : String(reason),
+        stack: reason instanceof Error ? reason.stack : undefined,
       },
       '未处理的 Promise 拒绝'
     );
   });
 
   logger.info('日志系统初始化完成');
-}
-
-/**
- * 记录API请求日志的辅助函数
- */
-export function logApiRequest(
-  method: string,
-  url: string,
-  statusCode: number,
-  duration?: number,
-  userAgent?: string,
-  ip?: string
-) {
-  const logData = {
-    method,
-    url,
-    statusCode,
-    duration,
-    userAgent,
-    ip,
-  };
-
-  if (statusCode >= 400) {
-    logger.error(logData, `API ${method} ${url} - ${statusCode}`);
-  } else {
-    logger.info(logData, `API ${method} ${url} - ${statusCode}`);
-  }
 }
