@@ -1,173 +1,55 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+AI 编码助手指南。详细开发文档见 [DEVELOPMENT.md](./DEVELOPMENT.md)。
 
-## 项目状态
+## 项目概述
 
-**🚧 迁移进行中**
+基于 Next.js 16 的 AI 文件自动整理工具。
 
-项目正在从 React Router + Fastify 架构迁移到 Next.js 全栈应用。代码已可成功构建，但需要完整的功能测试和问题修复。
-
-**迁移备忘录**: 详细信息请查看 [MIGRATION_MEMO.md](./MIGRATION_MEMO.md)
+**技术栈**: Next.js + TypeScript + shadcn/ui + pino + OpenAI API
 
 ## 开发命令
 
 ```bash
-# 开发环境
-npm run dev
-
-# 构建生产版本
-npm run build
-
-# 生产环境启动
-npm start
-
-# 代码检查
-npm run lint
+npm run dev     # 开发环境 (端口 8080)
+npm run build   # 构建
+npm run lint    # 代码检查
 ```
 
-## 项目架构
-
-这是一个基于 Next.js 16 的 AI 文件自动整理工具，从原有的后端服务迁移为全栈 Next.js 应用。
-
-### 核心特性
-
-- **AI 智能分类**: 使用 OpenAI API 分析文件内容并自动分类
-- **相似度匹配**: 通过文件名相似度快速匹配，减少 AI 调用成本
-- **定时任务**: 支持自动定时整理文件
-- **实时统计**: 文件处理历史、AI 使用情况等数据可视化
-
-### 目录结构
+## 目录结构
 
 ```
 src/
-├── app/                    # Next.js App Router
-│   ├── api/               # API 路由（按功能模块组织）
-│   │   ├── config/        # 配置管理 API
-│   │   ├── task/          # 任务执行 API
-│   │   ├── trigger/       # 手动触发 API
-│   │   ├── logs/          # 日志查询 API
-│   │   ├── stats/         # 统计数据 API
-│   │   └── system/        # 系统状态 API
-│   ├── logs/              # 日志查看页面
-│   ├── stats/             # 统计信息页面
-│   ├── config/            # 配置管理页面
-│   └── task-history/      # 任务历史页面
-├── components/            # React 组件
-│   └── ui/               # shadcn/ui 基础组件
-├── lib/                  # 工具库和核心逻辑
-│   ├── logger.ts         # 日志系统（基于 pino）
-│   ├── log-config.ts     # 日志配置
-│   ├── file-organizer/   # 文件整理核心逻辑
-│   └── config.ts         # 配置文件管理
-├── hooks/               # 自定义 React Hooks
-└── types/               # TypeScript 类型定义
+├── app/api/          # API 路由
+├── components/       # React 组件
+├── lib/             # 工具库和服务
+└── hooks/           # 自定义 Hooks
+
+data/                 # 持久化数据 (stats.json, tasks/)
+logs/                 # 日志文件 (按天轮转)
 ```
 
-### 技术栈
+## 关键文件
 
-- **前端**: Next.js 16 + TypeScript + Tailwind CSS
-- **UI 组件**: shadcn/ui + Radix UI
-- **状态管理**: SWR (数据获取) + React Context
-- **日志系统**: pino + rotating-file-stream
-- **文件处理**: exiftool-vendored
-- **AI 集成**: OpenAI API
-- **定时任务**: node-cron
+| 文件                      | 说明         |
+| ------------------------- | ------------ |
+| `src/lib/config.ts`       | 配置管理     |
+| `src/lib/logger.ts`       | 日志系统     |
+| `src/lib/services/`       | 业务服务     |
+| `src/lib/file-organizer/` | 文件整理核心 |
 
-### 配置管理
+## 开发注意
 
-项目使用 `config.yaml` 作为主配置文件，包含：
+1. 配置文件: `config.yaml`
+2. 日志级别: 环境变量 `LOG_LEVEL`
+3. 数据目录: `./data` (统计和任务数据)
+4. 日志目录: `./logs`
 
-- OpenAI API 配置（支持自定义端点）
-- 目录路径设置
-- 定时任务配置
-- 日志级别设置
-- 文件扫描参数
+## API 端点
 
-### 数据存储
-
-数据和日志分离存储，便于独立管理：
-
-```
-data/                              # 持久化数据（长期保留）
-├── stats.json                     # 任务统计记录
-└── tasks/{taskId}/
-    └── files.json                 # 任务文件处理详情
-
-logs/                              # 日志文件（30天轮转）
-├── global/                        # 全局日志
-│   ├── main.log
-│   ├── ai.log
-│   └── ...
-└── tasks/{taskId}/                # 任务日志
-    ├── main.log
-    └── ai.log
-```
-
-### 日志系统
-
-采用多层级日志结构：
-
-- **全局日志**: 按模块分类，按天轮转，保留30天
-- **任务日志**: 每个任务独立日志文件，便于追踪特定执行过程
-- **日志模块**: system、main、file-scan、file-info、file-move、ai
-
-### API 设计
-
-所有 API 遵循 RESTful 设计，按功能模块组织在 `src/app/api/` 下：
-
-- 错误处理统一，返回标准错误格式
-- 支持任务上下文追踪（通过 taskId）
-- 集成日志记录和错误追踪
-
-### 开发注意事项
-
-1. **配置文件**: 开发时需要复制 `config.yaml.example` 为 `config.yaml` 并填入相应配置
-2. **日志初始化**: 在 `layout.tsx` 中初始化日志系统，确保服务端日志正常工作
-3. **任务上下文**: 使用 `setCurrentTaskId()` 设置任务上下文，确保日志正确关联到特定任务
-4. **文件操作**: 所有文件操作都应考虑重试机制和错误处理
-5. **AI 调用**: 注意控制 API 调用频率，优先使用相似度匹配减少成本
-
-### 开发流程
-
-1. **功能开发**: 按照 Next.js 最佳实践进行开发
-2. **测试验证**: 使用以下工具进行功能测试：
-   - **API 测试**: 使用 `curl` 或 `fetch` 测试 API 端点响应
-   - **页面测试**: 使用浏览器开发工具进行页面交互测试
-   - **端到端测试**: 使用 Playwright 进行完整用户流程测试
-3. **代码质量**: 确保代码符合 Next.js 最佳实践
-
-### API 测试示例
-
-```bash
-# 健康检查
-curl http://localhost:8080/api/health
-
-# 获取系统状态
-curl http://localhost:8080/api/status
-
-# 获取配置信息
-curl http://localhost:8080/api/config
-
-# 获取统计数据
-curl http://localhost:8080/api/stats
-
-# 获取使用统计
-curl http://localhost:8080/api/usage-stats
-
-# 获取日志列表
-curl http://localhost:8080/api/logs
-
-# 手动触发任务
-curl -X POST http://localhost:8080/api/trigger \
-  -H "Content-Type: application/json" \
-  -d '{"dry_run": false}'
-```
-
-### 部署相关
-
-- **开发环境**: 默认运行在 8080 端口
-- **生产环境**: 默认运行在 3000 端口
-- **Docker 部署**: 使用自定义服务器配置，支持目录映射和配置文件挂载
-- **数据目录**: `./data`（存储统计和任务数据，需要持久化挂载）
-- **日志目录**: `./logs`（可选挂载，用于排查问题）
+- `GET /api/health` - 健康检查
+- `GET /api/status` - 系统状态
+- `GET /api/config` - 获取配置
+- `POST /api/trigger` - 触发任务
+- `GET /api/stats` - 统计数据
+- `GET /api/logs` - 日志查询
