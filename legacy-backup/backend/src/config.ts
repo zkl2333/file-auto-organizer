@@ -1,0 +1,282 @@
+import fs from 'fs';
+import path from 'path';
+import yaml from 'js-yaml';
+
+// 配置文件接口定义
+interface ConfigFile {
+  openai: {
+    api_key: string;
+    model: string;
+    base_url: string;
+  };
+  directories: {
+    root_dir: string;
+    incoming_dir: string;
+  };
+  cron: {
+    enabled: boolean;
+    schedule: string;
+  };
+  logging: {
+    level: string;
+    dir: string;
+  };
+  timezone: string;
+  scan: {
+    max_depth: number;
+    similarity_threshold: number;
+  };
+  ai: {
+    batch_size: number;
+  };
+  file_operations: {
+    max_retries: number;
+    retry_delay_base: number;
+  };
+}
+
+// 默认配置
+const defaultConfig: ConfigFile = {
+  timezone: 'Asia/Shanghai',
+  openai: {
+    api_key: '',
+    model: 'gpt-5-nano',
+    base_url: '',
+  },
+  directories: {
+    root_dir: './分类库',
+    incoming_dir: './待分类',
+  },
+  cron: {
+    enabled: true,
+    schedule: '0 * * * *',
+  },
+  logging: {
+    level: 'info',
+    dir: './logs',
+  },
+  scan: {
+    max_depth: 3,
+    similarity_threshold: 0.65,
+  },
+  ai: {
+    batch_size: 5,
+  },
+  file_operations: {
+    max_retries: 3,
+    retry_delay_base: 1000,
+  },
+};
+
+/**
+ * 创建默认配置文件
+ */
+function createDefaultConfigFile(targetPath: string): void {
+  try {
+    const exampleConfigPath = path.resolve(process.cwd(), '..', 'config.yaml.example');
+    let defaultContent: string;
+
+    if (fs.existsSync(exampleConfigPath)) {
+      // 如果存在示例文件，使用其内容
+      defaultContent = fs.readFileSync(exampleConfigPath, 'utf8');
+    } else {
+      // 否则生成基本的配置内容
+      defaultContent = `# File Auto Organizer 配置文件
+# 首次启动自动创建，请根据需要修改配置
+
+openai:
+  api_key: ""  # 必填：OpenAI API密钥
+  model: "gpt-4-turbo" # AI模型选择
+  base_url: "" # 可选：兼容其他API服务
+
+directories:
+  root_dir: "./分类库"              # 分类后文件存储位置
+  incoming_dir: "./待分类"          # 待分类文件位置
+
+cron:
+  enabled: true                        # 是否启用定时任务
+  schedule: "0 * * * *"                # 定时执行规则（每小时）
+
+logging:
+  level: "info"                        # 日志级别: debug, info, warn, error
+  dir: "./logs"                       # 日志文件目录
+
+timezone: "Asia/Shanghai"              # 时区设置
+
+scan:
+  max_depth: 3                         # 目录扫描最大深度
+  similarity_threshold: 0.65           # 文件相似度阈值
+
+ai:
+  batch_size: 5                        # AI批量处理文件数量
+
+file_operations:
+  max_retries: 3                       # 文件操作最大重试次数
+  retry_delay_base: 1000               # 重试延迟基数（毫秒）
+`;
+    }
+
+    fs.writeFileSync(targetPath, defaultContent, 'utf8');
+    console.log(`✅ 已创建默认配置文件: ${targetPath}`);
+  } catch (error) {
+    console.error(`❌ 创建配置文件失败: ${error}`);
+    throw error;
+  }
+}
+
+/**
+ * 查找或创建配置文件
+ * 优先级：环境变量 > cwd/config.yaml (Docker) > cwd/../config.yaml (本地开发) > 自动创建
+ */
+export function findConfigFile(): string | null {
+  // 1. 环境变量指定
+  if (process.env.CONFIG_PATH) {
+    const envPath = path.resolve(process.env.CONFIG_PATH);
+    if (fs.existsSync(envPath)) return envPath;
+  }
+
+  // 2. 当前工作目录 (Docker: /app/config.yaml)
+  const cwdPath = path.resolve(process.cwd(), 'config.yaml');
+  if (fs.existsSync(cwdPath)) return cwdPath;
+
+  // 3. 父目录 (本地开发: backend/../config.yaml)
+  const parentPath = path.resolve(process.cwd(), '..', 'config.yaml');
+  if (fs.existsSync(parentPath)) return parentPath;
+
+  // 4. 如果都不存在，在当前工作目录创建默认配置文件
+  console.log('🔧 配置文件不存在，正在创建默认配置文件...');
+  createDefaultConfigFile(cwdPath);
+  return cwdPath;
+}
+
+// 配置文件路径（用于解析相对路径）
+let configFilePath: string | null = null;
+
+/**
+ * 获取基准目录（配置文件所在目录）
+ */
+function getBaseDir(): string {
+  return configFilePath ? path.dirname(configFilePath) : process.cwd();
+}
+
+/**
+ * 解析路径（相对路径基于配置文件目录，绝对路径保持不变）
+ */
+function resolvePath(p: string): string {
+  return path.isAbsolute(p) ? p : path.resolve(getBaseDir(), p);
+}
+
+// 加载配置文件
+function loadConfig(): ConfigFile {
+  configFilePath = findConfigFile();
+
+  try {
+    if (configFilePath) {
+      const fileContent = fs.readFileSync(configFilePath, 'utf8');
+      const loadedConfig = yaml.load(fileContent) as ConfigFile;
+
+      // 合并默认配置和加载的配置
+      return mergeConfig(defaultConfig, loadedConfig);
+    } else {
+      console.warn(`配置文件 config.yaml 不存在，使用默认配置`);
+      return defaultConfig;
+    }
+  } catch (error) {
+    console.error(`加载配置文件失败: ${error}`);
+    console.warn('使用默认配置');
+    return defaultConfig;
+  }
+}
+
+// 深度合并配置
+function mergeConfig(defaultConfig: ConfigFile, loadedConfig: Partial<ConfigFile>): ConfigFile {
+  const merged = { ...defaultConfig };
+
+  if (loadedConfig.openai) {
+    merged.openai = { ...merged.openai, ...loadedConfig.openai };
+  }
+  if (loadedConfig.directories) {
+    merged.directories = { ...merged.directories, ...loadedConfig.directories };
+  }
+  if (loadedConfig.cron) {
+    merged.cron = { ...merged.cron, ...loadedConfig.cron };
+  }
+  if (loadedConfig.logging) {
+    merged.logging = { ...merged.logging, ...loadedConfig.logging };
+  }
+  if (loadedConfig.scan) {
+    merged.scan = { ...merged.scan, ...loadedConfig.scan };
+  }
+  if (loadedConfig.ai) {
+    merged.ai = { ...merged.ai, ...loadedConfig.ai };
+  }
+  if (loadedConfig.file_operations) {
+    merged.file_operations = { ...merged.file_operations, ...loadedConfig.file_operations };
+  }
+  // 时区配置：优先使用配置文件中的值
+  if (loadedConfig.timezone) {
+    merged.timezone = loadedConfig.timezone;
+  }
+
+  return merged;
+}
+
+// 加载配置
+const loadedConfig = loadConfig();
+
+/**
+ * 重新加载配置（用于热更新）
+ */
+export function reloadConfig(): ConfigFile {
+  return loadConfig();
+}
+
+/**
+ * 获取当前配置快照（每次调用重新读取）
+ */
+export function getConfigSnapshot() {
+  const freshConfig = reloadConfig();
+  return {
+    OPENAI_API_KEY: freshConfig.openai.api_key,
+    OPENAI_MODEL: freshConfig.openai.model,
+    OPENAI_BASE_URL: freshConfig.openai.base_url,
+    ROOT_DIR: resolvePath(freshConfig.directories.root_dir),
+    INCOMING_DIR: resolvePath(freshConfig.directories.incoming_dir),
+    CRON_ENABLED: freshConfig.cron.enabled ?? true,
+    CRON_SCHEDULE: freshConfig.cron.schedule,
+    // 以下配置使用环境变量或启动时配置，不支持热更新
+    LOG_LEVEL: process.env.LOG_LEVEL || freshConfig.logging.level,
+    LOG_DIR: process.env.LOG_DIR
+      ? resolvePath(process.env.LOG_DIR)
+      : resolvePath(freshConfig.logging.dir),
+    MAX_SCAN_DEPTH: freshConfig.scan.max_depth,
+    SIMILARITY_THRESHOLD: freshConfig.scan.similarity_threshold,
+    AI_BATCH_SIZE: freshConfig.ai.batch_size,
+    FILE_MAX_RETRIES: freshConfig.file_operations.max_retries,
+    FILE_RETRY_DELAY_BASE: freshConfig.file_operations.retry_delay_base,
+    TIMEZONE: freshConfig.timezone, // 时区配置：配置文件优先，其次使用默认值
+  } as const;
+}
+
+// 导出配置文件基准目录
+export const CONFIG_BASE_DIR = getBaseDir();
+
+// 导出配置对象（保持原有接口兼容性）
+// 相对路径解析为绝对路径（相对于配置文件所在目录），绝对路径保持不变
+export const config = {
+  OPENAI_API_KEY: loadedConfig.openai.api_key,
+  OPENAI_MODEL: loadedConfig.openai.model,
+  OPENAI_BASE_URL: loadedConfig.openai.base_url,
+  ROOT_DIR: resolvePath(loadedConfig.directories.root_dir),
+  INCOMING_DIR: resolvePath(loadedConfig.directories.incoming_dir),
+  CRON_ENABLED: loadedConfig.cron.enabled ?? true,
+  CRON_SCHEDULE: loadedConfig.cron.schedule,
+  LOG_LEVEL: loadedConfig.logging.level,
+  LOG_DIR: resolvePath(loadedConfig.logging.dir),
+  MAX_SCAN_DEPTH: loadedConfig.scan.max_depth,
+  SIMILARITY_THRESHOLD: loadedConfig.scan.similarity_threshold,
+  AI_BATCH_SIZE: loadedConfig.ai.batch_size,
+  FILE_MAX_RETRIES: loadedConfig.file_operations.max_retries,
+  FILE_RETRY_DELAY_BASE: loadedConfig.file_operations.retry_delay_base,
+  TIMEZONE: loadedConfig.timezone, // 时区配置：配置文件优先，其次使用默认值
+} as const;

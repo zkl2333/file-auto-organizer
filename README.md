@@ -1,252 +1,98 @@
 # File Auto Organizer
 
-自动整理文件的工具，通过 AI 分析文件内容来决定放在哪个文件夹。
+基于 AI 的智能文件整理工具，自动分析文件内容并分类归档。
 
-## 解决什么问题
+## ✨ 特性
 
-文件夹总是很乱？下载文件夹、桌面、工作目录到处都是文件？这个工具会自动帮你整理。
-
-它会：
-
-- 读取文件内容，判断这是什么类型的文件
-- 参考已有的文件夹结构，或者自动创建合适的分类
-- 自动移动文件到对应位置
-- 如果文件名很相似，直接匹配，不浪费 AI 调用
-
-## 工作流程
-
-1. 扫描待分类目录（可以是下载文件夹、桌面等任意位置）
-2. 分析现有的分类目录结构，如果有的话
-3. 优先用文件名相似度快速匹配
-4. 无法匹配的文件交给 AI 分析内容，自动创建合适的分类
-5. 移动文件到对应位置
-6. 记录处理日志
+- 🤖 **AI 智能分类**: 使用 OpenAI API 分析文件内容，自动决定文件归属
+- ⚡ **相似度匹配**: 优先通过文件名相似度快速匹配，减少 AI 调用
+- 🌐 **Web 界面**: 现代化管理界面
+- 📊 **实时统计**: 查看文件处理历史、AI 使用情况
+- ⏰ **定时任务**: 支持自动定时整理
 
 ## 🚀 快速开始
 
-### 准备工作
-
-- Docker 和 Docker Compose
-- OpenAI API Key 或兼容接口的 API Key
-
-### 第一步：创建工作目录
+### Docker 部署（推荐）
 
 ```bash
-mkdir file-auto-organizer
-cd file-auto-organizer
-mkdir logs
+# 创建目录
+mkdir -p file-auto-organizer && cd file-auto-organizer
+mkdir -p data logs
+
+# 下载配置模板
+curl -O https://raw.githubusercontent.com/zkl2333/file-auto-organizer/main/config.yaml.example
+mv config.yaml.example config.yaml
+# 编辑 config.yaml，填入 OpenAI API Key
+
+# 启动
+docker run -d \
+  --name file-auto-organizer \
+  -p 8080:8080 \
+  -v ~/Downloads:/data:rw \
+  -v ./data:/app/data:rw \
+  -v ./logs:/app/logs:rw \
+  -v ./config.yaml:/app/config.yaml:ro \
+  docker.io/zkl2333/file-auto-organizer:latest
+
+# 访问 http://localhost:8080
 ```
 
-### 第二步：创建配置文件
+## 📁 配置
 
-创建 `config.yaml` 文件：
+编辑 `config.yaml`:
 
 ```yaml
-# AI 配置
 openai:
-  api_key: "your-api-key-here"        # 请替换为你的 API Key
-  model: "gpt-5-nano"                # 推荐模型，性价比高
-  base_url: "https://aihubmix.com/v1"  # 推荐的兼容接口
+  api_key: 'your-openai-api-key' # 必填
+  model: 'gpt-5-nano' # 可选
+  base_url: 'https://api.openai.com/v1' # 可选：自定义端点
 
-# 目录配置  
 directories:
-  root_dir: "/data/分类库"             # 分类后文件存储位置
-  incoming_dir: "/data/待分类"         # 待分类文件位置
+  root_dir: '/data/分类库' # 分类后存放位置
+  incoming_dir: '/data/待分类' # 待整理文件目录
 
-# 定时任务配置
 cron:
-  schedule: "0 * * * *"               # 每小时执行一次
-
-# 其他配置
-logging:
-  level: "info"
-  dir: "/app/logs"
-
-scan:
-  max_depth: 3
-  similarity_threshold: 0.65
-
-ai:
-  batch_size: 5
+  enabled: true
+  schedule: '0 */6 * * *' # 每6小时执行
 ```
 
-**OpenAI 兼容接口推荐：**
-- 使用 `https://aihubmix.com/v1` 作为 `base_url`
-- 一站式对接各种大模型。让开发更智能、更高效。
-- 注册地址：[console.aihubmix.com](https://console.aihubmix.com?aff=SWnZ)
-
-## Docker 运行方式
-
-### 方式一：定时自动运行（推荐）
-
-适合需要持续监控和整理文件的场景。
-
-**创建 docker-compose.yaml：**
+## 🐳 Docker Compose
 
 ```yaml
+# docker-compose.yml
 services:
-  file-organizer:
-    image: docker.io/zkl2333/file-auto-organizer:latest
-    container_name: file-organizer
-    restart: unless-stopped
+  file-auto-organizer:
+    image: zkl2333/file-auto-organizer:latest
+    ports:
+      - '8080:8080'
     volumes:
-      # 文件目录挂载（根据实际情况修改路径）
-      - ~/Downloads:/data:rw               # 下载文件夹
-      - ./logs:/app/logs:rw                # 日志目录
-      - ./config.yaml:/app/config.yaml:ro # 配置文件
+      - ~/Downloads:/data:rw
+      - ./data:/app/data:rw
+      - ./logs:/app/logs:rw
+      - ./config.yaml:/app/config.yaml:ro
+    restart: unless-stopped
 ```
-
-**启动服务：**
 
 ```bash
-# 启动定时服务
-docker compose up -d
-
-# 查看运行状态
-docker compose ps
-
-# 查看实时日志
-docker compose logs -f
-
-# 查看最近日志
-docker compose logs --tail=50
+docker-compose up -d
 ```
 
-**服务管理：**
+### 目录说明
 
-```bash
-# 停止服务
-docker compose down
+| 目录               | 说明                 |
+| ------------------ | -------------------- |
+| `/data`            | 待分类和分类后的文件 |
+| `/app/data`        | 统计数据和任务记录   |
+| `/app/logs`        | 日志文件             |
+| `/app/config.yaml` | 配置文件             |
 
-# 重启服务  
-docker compose restart
+### 环境变量
 
-# 更新镜像
-docker compose pull && docker compose up -d
-```
+| 变量        | 说明     | 默认值 |
+| ----------- | -------- | ------ |
+| `PORT`      | 服务端口 | 8080   |
+| `LOG_LEVEL` | 日志级别 | info   |
 
-**目录挂载示例：**
-
-```bash
-# 整理下载文件夹
--v ~/Downloads:/data:rw
-
-# 整理桌面文件
--v ~/Desktop:/data:rw
-
-# 整理指定目录
--v /path/to/your/files:/data:rw
-
-# 多目录挂载（高级用法）
--v ~/Downloads:/data/downloads:rw \
--v ~/Desktop:/data/desktop:rw
-```
-
-## 使用建议
-
-### 首次使用流程
-
-1. **模拟运行**：使用 HTTP API 的 `dryRun=true` 参数查看分类效果
-2. **检查日志**：确认分类逻辑符合预期  
-3. **小范围测试**：先在少量文件上测试
-4. **正式使用**：确认无误后进行正式整理
-
-### 目录结构示例
-
-**自动创建分类：**
-```
-~/Downloads/分类库/
-├── 工作文档/
-├── 学习资料/
-└── 个人文件/
-```
-
-**参考已有分类：**
-```
-~/Downloads/分类库/
-├── 工作文档/
-│   ├── 会议记录/
-│   └── 项目资料/
-├── 学习资料/
-│   ├── 编程/
-│   └── 设计/
-└── 个人文件/
-    ├── 照片/
-    └── 账单/
-```
-
-## 配置说明
-
-### 目录配置
-
-配置文件中的目录路径是相对于容器内的，需要与 Docker 挂载对应：
-
-| Docker 挂载 | 配置文件路径 | 实际效果 |
-|------------|-------------|---------|
-| `~/Downloads:/data:rw` | `root_dir: "/data/分类库"` | 文件分类到 `~/Downloads/分类库/` |
-| `~/Downloads:/data:rw` | `incoming_dir: "/data/待分类"` | 扫描 `~/Downloads/待分类/` 目录 |
-
-### 定时任务配置
-
-```yaml
-cron:
-  schedule: "0 * * * *"    # 每小时
-  # schedule: "*/5 * * * *"  # 每5分钟
-  # schedule: "0 2 * * *"    # 每天凌晨2点
-  # schedule: "0 8,20 * * *" # 每天8点和20点
-```
-
-## 本地运行
-
-如果需要本地开发或调试：
-
-```bash
-# 安装 Node.js（建议 v18+）
-# macOS/Linux: 使用 nvm 或从官网下载
-# Windows: 从官网下载或使用 nvm-windows
-
-# 克隆项目
-git clone https://github.com/zkl2333/file-auto-organizer.git
-cd file-auto-organizer
-
-# 安装依赖（前后端都使用 npm）
-cd backend && npm install && cd ..
-cd frontend && npm install && cd ..
-
-# 安装根目录开发依赖（用于同时运行前后端）
-npm install
-
-# 配置文件
-cp config.yaml.example config.yaml
-# 编辑 config.yaml 设置你的 API Key
-
-# 运行（在根目录）
-npm run build        # 构建前后端
-npm run start        # 启动后端定时服务
-npm run dev          # 同时启动前后端开发模式
-npm run dev:backend  # 仅启动后端开发
-npm run dev:frontend # 仅启动前端开发
-npm run test         # 运行测试
-```
-
-## 常见问题
-
-### Q: 支持哪些文件类型？
-
-A: 支持几乎所有常见文件类型，包括文档、图片、视频、音频、压缩包、代码文件等。
-
-### Q: AI 分类准确吗？
-
-A: AI 会分析文件名、内容和元数据来做出分类决策。对于无法确定的文件，会优先使用文件名相似度匹配，确保分类的准确性。
-
-### Q: 会移动重要文件吗？
-
-A: 程序只会移动指定 `incoming_dir` 目录中的文件，不会触碰其他位置的文件。建议先使用 HTTP API 的 `dryRun=true` 模式测试。
-
-### Q: 如何自定义分类规则？
-
-A: 可以预先创建文件夹结构，程序会优先匹配到现有分类。也可以通过修改 AI 提示词来调整分类策略。
-
-## 许可证
+## 📄 许可证
 
 MIT License

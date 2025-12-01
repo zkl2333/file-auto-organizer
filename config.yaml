@@ -1,0 +1,25 @@
+openai:
+  api_key: sk-KVY4lHcePnDP6NPRE4B7B942A3F7489c917539Bf2b8f3dC5
+  model: gpt-5-nano
+  base_url: https://aihubmix.com/v1
+directories:
+  root_dir: ./data/分类库
+  incoming_dir: ./data/待分类
+cron:
+  enabled: false
+  schedule: '*/5 * * * *'
+scan:
+  max_depth: 3
+  similarity_threshold: 0.65
+ai:
+  batch_size: 3
+file_operations:
+  max_retries: 3
+  retry_delay_base: 1000
+server:
+  port: 3001
+timezone: Asia/Shanghai
+development:
+  dry_run_by_default: true
+  create_sample_files: true
+  api_rate_limit_delay: 500
