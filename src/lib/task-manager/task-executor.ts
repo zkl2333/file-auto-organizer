@@ -44,6 +44,14 @@ export class TaskExecutor {
     this.fileMoveService = new FileMoveService();
   }
 
+  /** 更新文件状态，自动设置 timestamp */
+  private updateFile(filePath: string, updates: Partial<ProcessedFile>): void {
+    const file = this.fileMap.get(filePath);
+    if (file) {
+      Object.assign(file, updates, { timestamp: Date.now() });
+    }
+  }
+
   /** 执行任务，返回任务结果 */
   async execute(): Promise<TaskResult> {
     try {
@@ -139,12 +147,11 @@ export class TaskExecutor {
         status: 'pending',
         timestamp: Date.now(),
         processStage: 'scan',
-        progress: 0,
         taskId: this.task.taskId,
       };
 
       this.task.addFile(processedFile);
-      this.fileMap.set(fileName, processedFile);
+      this.fileMap.set(filePath, processedFile);
     }
 
     logger.info({ taskId: this.task.taskId, fileCount: filePaths.length }, '文件记录初始化完成');
@@ -163,24 +170,20 @@ export class TaskExecutor {
 
     for (const filePath of filePaths) {
       const fileName = path.basename(filePath);
-      const file = this.fileMap.get(fileName);
-      if (!file) continue;
+      if (!this.fileMap.has(filePath)) continue;
 
-      file.status = 'similarity_matching';
-      file.processStage = 'similarity';
-      file.progress = 25;
+      this.updateFile(filePath, { status: 'similarity_matching', processStage: 'similarity' });
 
       const { bestDir, bestScore } = SimilarityUtils.findMostSimilarFile(fileName, knownFiles);
 
       if (bestDir && bestScore >= threshold) {
         matched.push({ fileName, filePath, targetDir: bestDir });
-
-        file.status = 'similarity_matched';
-        file.method = 'similarity';
-        file.score = bestScore;
-        file.targetPath = path.join(this.config.rootDir, bestDir, fileName);
-        file.progress = 50;
-
+        this.updateFile(filePath, {
+          status: 'similarity_matched',
+          method: 'similarity',
+          score: bestScore,
+          targetPath: path.join(this.config.rootDir, bestDir, fileName),
+        });
         this.updateKnownDirectories(path.join(this.config.rootDir, bestDir));
 
         logger.debug(
@@ -189,9 +192,7 @@ export class TaskExecutor {
         );
       } else {
         needAI.push(filePath);
-        file.method = 'ai';
-        file.score = bestScore;
-        file.progress = 25;
+        this.updateFile(filePath, { method: 'ai', score: bestScore });
       }
     }
 
@@ -210,34 +211,25 @@ export class TaskExecutor {
     logger.info({ taskId: this.task.taskId, files: files.length }, '开始移动文件');
 
     for (const { fileName, filePath, targetDir } of files) {
-      const file = this.fileMap.get(fileName);
-      if (!file) continue;
+      if (!this.fileMap.has(filePath)) continue;
 
       const targetPath = path.join(this.config.rootDir, targetDir, fileName);
 
       if (this.task.dryRun) {
-        Object.assign(file, {
-          status: 'success',
-          processStage: 'complete',
-          progress: 100,
-          targetPath,
-        });
+        this.updateFile(filePath, { status: 'success', processStage: 'complete', targetPath });
       } else {
-        file.status = 'moving';
-        file.processStage = 'move';
-        file.progress = 75;
+        this.updateFile(filePath, { status: 'moving', processStage: 'move' });
 
         const result = await this.fileMoveService.moveFile(filePath, targetPath);
 
         if (result.success) {
-          Object.assign(file, {
+          this.updateFile(filePath, {
             status: 'success',
             targetPath: result.finalPath,
-            progress: 100,
             processStage: 'complete',
           });
         } else {
-          Object.assign(file, { status: 'failed', progress: 100, processStage: 'complete' });
+          this.updateFile(filePath, { status: 'failed', processStage: 'complete' });
           logger.error({ taskId: this.task.taskId, fileName, error: result.error }, '文件移动失败');
         }
       }
@@ -258,7 +250,7 @@ export class TaskExecutor {
 
     try {
       const { classifications, tokensUsed } = await this.classifyInBatches(filesWithDesc);
-      const aiResults = this.processClassificationResults(classifications, filesWithDesc);
+      const aiResults = this.processClassificationResults(classifications);
 
       logger.info(
         { taskId: this.task.taskId, classified: aiResults.length, tokensUsed },
@@ -281,20 +273,13 @@ export class TaskExecutor {
 
     for (const filePath of filePaths) {
       const fileName = path.basename(filePath);
-      const file = this.fileMap.get(fileName);
 
-      if (file) {
-        file.status = 'ai_classifying';
-        file.processStage = 'ai';
-        file.progress = 50;
-      }
+      this.updateFile(filePath, { status: 'ai_classifying', processStage: 'ai' });
 
       const description = await this.fileInfoService.getFileDescription(filePath);
       logger.info({ taskId: this.task.taskId, fileName, description }, '获取文件描述');
 
-      if (file) {
-        file.description = description;
-      }
+      this.updateFile(filePath, { description });
 
       result.push({ fileName, description, filePath });
     }
@@ -304,18 +289,35 @@ export class TaskExecutor {
 
   /** 分批调用AI分类服务，批次间更新已知目录并延迟1秒 */
   private async classifyInBatches(
-    filesWithDesc: Array<{ fileName: string; description: string }>
+    filesWithDesc: Array<{ fileName: string; description: string; filePath: string }>
   ): Promise<{
-    classifications: Array<{ fileName: string; path: string; reasoning?: string }>;
+    classifications: Array<{
+      fileName: string;
+      path: string;
+      reasoning?: string;
+      filePath: string;
+    }>;
     tokensUsed: number;
   }> {
     const batchSize = this.fullConfig.ai.batch_size || 10;
     const batches = FileUtils.chunkArray(filesWithDesc, batchSize);
 
-    const allClassifications: Array<{ fileName: string; path: string; reasoning?: string }> = [];
+    const allClassifications: Array<{
+      fileName: string;
+      path: string;
+      reasoning?: string;
+      filePath: string;
+    }> = [];
     let totalTokensUsed = 0;
 
     for (let i = 0; i < batches.length; i++) {
+      const batch = batches[i];
+
+      // 更新批次内文件状态为 AI 分类中
+      for (const { filePath } of batch) {
+        this.updateFile(filePath, { status: 'ai_classifying' });
+      }
+
       logger.info(
         {
           taskId: this.task.taskId,
@@ -326,16 +328,21 @@ export class TaskExecutor {
       );
 
       const { classifications, tokensUsed } = await this.aiClassificationService.classifyBatch(
-        batches[i].map((f) => ({ fileName: f.fileName, description: f.description })),
+        batch,
         this.currentKnownDirs
       );
 
-      // 批次完成后立即更新已知目录，供下一批次参考
-      for (const { path: targetDir } of classifications) {
+      // 批次完成后立即更新该批次文件的状态和已知目录
+      for (const { fileName, path: targetDir, reasoning, filePath } of classifications) {
+        this.updateFile(filePath, {
+          status: 'ai_classified',
+          reasoning,
+          targetPath: path.join(this.config.rootDir, targetDir, fileName),
+        });
         this.updateKnownDirectories(path.join(this.config.rootDir, targetDir));
+        allClassifications.push({ fileName, path: targetDir, reasoning, filePath });
       }
 
-      allClassifications.push(...classifications);
       totalTokensUsed += tokensUsed;
 
       if (i < batches.length - 1) {
@@ -346,37 +353,22 @@ export class TaskExecutor {
     return { classifications: allClassifications, tokensUsed: totalTokensUsed };
   }
 
-  /** 处理AI分类结果，更新文件状态 */
+  /** 处理AI分类结果，构建移动文件列表 */
   private processClassificationResults(
-    classifications: Array<{ fileName: string; path: string; reasoning?: string }>,
-    filesWithDesc: Array<{ fileName: string; filePath: string }>
+    classifications: Array<{ fileName: string; path: string; reasoning?: string; filePath: string }>
   ): ClassifiedFile[] {
-    const results: ClassifiedFile[] = [];
-    const filePathMap = new Map(filesWithDesc.map((f) => [f.fileName, f.filePath]));
-
-    for (const { fileName, path: targetDir, reasoning } of classifications) {
-      const filePath = filePathMap.get(fileName);
-      if (!filePath) continue;
-
-      const file = this.fileMap.get(fileName);
-      if (file) {
-        file.status = 'ai_classified';
-        file.progress = 60;
-        file.reasoning = reasoning;
-      }
-
-      results.push({ fileName, filePath, targetDir, reasoning });
-    }
-
-    return results;
+    // 状态已在 classifyInBatches 中更新，这里只构建移动列表
+    return classifications.map(({ fileName, path: targetDir, reasoning, filePath }) => ({
+      fileName,
+      filePath,
+      targetDir,
+      reasoning,
+    }));
   }
 
   private markFilesAsFailed(filePaths: string[]): void {
     for (const filePath of filePaths) {
-      const file = this.fileMap.get(path.basename(filePath));
-      if (file) {
-        Object.assign(file, { status: 'failed', progress: 100, processStage: 'complete' });
-      }
+      this.updateFile(path.basename(filePath), { status: 'failed', processStage: 'complete' });
     }
   }
 

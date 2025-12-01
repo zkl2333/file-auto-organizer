@@ -6,7 +6,7 @@ import { logger } from '@/lib/logger';
  * AI分类结果类型
  */
 interface ClassificationResult {
-  file_name: string;
+  file_index: number;
   directory_path: string;
   reasoning?: string;
 }
@@ -29,10 +29,15 @@ export class AIClassificationService {
    * 批量分类文件
    */
   async classifyBatch(
-    files: Array<{ fileName: string; description: string }>,
+    files: Array<{ fileName: string; description: string; filePath: string }>,
     knownDirs: string[]
   ): Promise<{
-    classifications: Array<{ fileName: string; path: string; reasoning?: string }>;
+    classifications: Array<{
+      fileName: string;
+      path: string;
+      reasoning?: string;
+      filePath: string;
+    }>;
     tokensUsed: number;
   }> {
     const startTime = Date.now();
@@ -44,7 +49,7 @@ export class AIClassificationService {
       const filesList = files
         .map(
           (file, index) =>
-            `${index + 1}. ${file.fileName}${file.description ? ` - ${file.description}` : ''}`
+            `[${index + 1}] ${file.fileName}${file.description ? ` - ${file.description}` : ''}`
         )
         .join('\n');
 
@@ -95,9 +100,9 @@ export class AIClassificationService {
                     items: {
                       type: 'object',
                       properties: {
-                        file_name: {
-                          type: 'string',
-                          description: '文件名',
+                        file_index: {
+                          type: 'number',
+                          description: '文件索引（从1开始，对应待分类文件列表中的 [n]）',
                         },
                         directory_path: {
                           type: 'string',
@@ -108,7 +113,7 @@ export class AIClassificationService {
                           description: '分类理由',
                         },
                       },
-                      required: ['file_name', 'directory_path', 'reasoning'],
+                      required: ['file_index', 'directory_path', 'reasoning'],
                     },
                   },
                 },
@@ -143,7 +148,8 @@ export class AIClassificationService {
 
             // 选择前3个分类结果作为示例
             const classificationsSample = classifications.slice(0, 3).map((c) => ({
-              file: c.file_name,
+              index: c.file_index,
+              file: files[c.file_index - 1]?.fileName,
               dir: c.directory_path,
               reason: c.reasoning
                 ? c.reasoning.substring(0, 50) + (c.reasoning.length > 50 ? '...' : '')
@@ -170,12 +176,19 @@ export class AIClassificationService {
             // 仅在 debug 级别记录完整分类结果
             logger.debug({ module: 'ai', classifications }, '完整分类结果');
 
+            // 通过索引直接获取 filePath
             return {
-              classifications: classifications.map((item) => ({
-                fileName: item.file_name,
-                path: item.directory_path,
-                reasoning: item.reasoning,
-              })),
+              classifications: classifications
+                .filter((item) => item.file_index >= 1 && item.file_index <= files.length)
+                .map((item) => {
+                  const file = files[item.file_index - 1];
+                  return {
+                    fileName: file.fileName,
+                    path: item.directory_path,
+                    reasoning: item.reasoning,
+                    filePath: file.filePath,
+                  };
+                }),
               tokensUsed,
             };
           } catch (parseError) {

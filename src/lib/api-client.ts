@@ -149,7 +149,6 @@ export interface ProcessedFile {
   timestamp: number;
   taskId?: string;
   processStage?: FileProcessStage;
-  progress?: number;
 }
 
 export interface TaskFileList {
