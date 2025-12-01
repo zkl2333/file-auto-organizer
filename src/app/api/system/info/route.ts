@@ -22,7 +22,6 @@ export async function GET() {
         similarityThreshold: config.scan.similarity_threshold,
         aiModel: config.openai.model,
         cronEnabled: config.cron.enabled,
-        logLevel: config.logging.level,
       },
     };
 

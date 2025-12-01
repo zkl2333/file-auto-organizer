@@ -179,7 +179,7 @@ export const TaskDetailView: React.FC<{
 
   if (isLoading || filesLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20 flex items-center justify-center">
+      <div className="min-h-screen bg-linear-to-br from-background via-background to-muted/20 flex items-center justify-center">
         <div className="text-center space-y-4">
           <RefreshCw className="w-12 h-12 animate-spin text-muted-foreground mx-auto" />
           <div className="space-y-2">
@@ -262,15 +262,6 @@ export const TaskDetailView: React.FC<{
 
   const statusConfig = getStatusConfig(task.status);
 
-  const fileTypeData = task.fileTypes
-    ? Object.entries(task.fileTypes)
-        .map(([type, count]) => ({
-          type,
-          count,
-        }))
-        .sort((a, b) => b.count - a.count) // 按数量降序排列
-    : [];
-
   // 使用真实文件列表数据
   const allFiles = processedFiles.map((file, index) => ({
     ...file,
@@ -308,7 +299,7 @@ export const TaskDetailView: React.FC<{
   const failedFilesList = allFiles.filter((f) => f.status === 'failed');
 
   return (
-    <div className="space-y-6 min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
+    <div className="space-y-6 min-h-screen bg-linear-to-br from-background via-background to-muted/20">
       {/* 顶部导航栏 */}
       <div className="sticky top-0 z-50 backdrop-blur-sm bg-background/80 border-b">
         <div className="container mx-auto px-4 py-4">
@@ -326,7 +317,7 @@ export const TaskDetailView: React.FC<{
                 </Button>
               )}
               <div className="space-y-1">
-                <h1 className="text-2xl font-bold bg-gradient-to-r from-foreground to-foreground/60 bg-clip-text text-transparent">
+                <h1 className="text-2xl font-bold bg-linear-to-r from-foreground to-foreground/60 bg-clip-text text-transparent">
                   任务详情
                 </h1>
                 <p className="text-sm text-muted-foreground font-mono flex items-center gap-2">
@@ -353,7 +344,7 @@ export const TaskDetailView: React.FC<{
       <div className="container mx-auto px-4 space-y-6">
         {/* 任务状态概览卡片 */}
         <Card
-          className={`border-0 bg-gradient-to-br ${statusConfig.bgColor} ${statusConfig.borderColor} shadow-lg`}
+          className={`border-0 bg-linear-to-br ${statusConfig.bgColor} ${statusConfig.borderColor} shadow-lg`}
         >
           <CardContent className="p-6">
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
@@ -409,7 +400,7 @@ export const TaskDetailView: React.FC<{
 
         {/* 统计信息卡片 */}
         <div className="grid gap-4 sm:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
-          <Card className="group hover:shadow-lg transition-all duration-300 border-0 bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-950/20 dark:to-blue-900/20">
+          <Card className="group hover:shadow-lg transition-all duration-300 border-0 bg-linear-to-br from-blue-50 to-blue-100/50 dark:from-blue-950/20 dark:to-blue-900/20">
             <CardContent className="p-6">
               <div className="flex items-start justify-between mb-4">
                 <div className="p-3 rounded-xl bg-blue-500/20 dark:bg-blue-500/10 group-hover:scale-110 transition-transform duration-300">
@@ -434,7 +425,7 @@ export const TaskDetailView: React.FC<{
             </CardContent>
           </Card>
 
-          <Card className="group hover:shadow-lg transition-all duration-300 border-0 bg-gradient-to-br from-green-50 to-green-100/50 dark:from-green-950/20 dark:to-green-900/20">
+          <Card className="group hover:shadow-lg transition-all duration-300 border-0 bg-linear-to-br from-green-50 to-green-100/50 dark:from-green-950/20 dark:to-green-900/20">
             <CardContent className="p-6">
               <div className="flex items-start justify-between mb-4">
                 <div className="p-3 rounded-xl bg-green-500/20 dark:bg-green-500/10 group-hover:scale-110 transition-transform duration-300">
@@ -459,7 +450,7 @@ export const TaskDetailView: React.FC<{
             </CardContent>
           </Card>
 
-          <Card className="group hover:shadow-lg transition-all duration-300 border-0 bg-gradient-to-br from-purple-50 to-purple-100/50 dark:from-purple-950/20 dark:to-purple-900/20">
+          <Card className="group hover:shadow-lg transition-all duration-300 border-0 bg-linear-to-br from-purple-50 to-purple-100/50 dark:from-purple-950/20 dark:to-purple-900/20">
             <CardContent className="p-6">
               <div className="flex items-start justify-between mb-4">
                 <div className="p-3 rounded-xl bg-purple-500/20 dark:bg-purple-500/10 group-hover:scale-110 transition-transform duration-300">
@@ -484,7 +475,7 @@ export const TaskDetailView: React.FC<{
             </CardContent>
           </Card>
 
-          <Card className="group hover:shadow-lg transition-all duration-300 border-0 bg-gradient-to-br from-orange-50 to-orange-100/50 dark:from-orange-950/20 dark:to-orange-900/20">
+          <Card className="group hover:shadow-lg transition-all duration-300 border-0 bg-linear-to-br from-orange-50 to-orange-100/50 dark:from-orange-950/20 dark:to-orange-900/20">
             <CardContent className="p-6">
               <div className="flex items-start justify-between mb-4">
                 <div className="p-3 rounded-xl bg-orange-500/20 dark:bg-orange-500/10 group-hover:scale-110 transition-transform duration-300">
@@ -514,7 +505,7 @@ export const TaskDetailView: React.FC<{
 
         {/* 失败文件突出展示 - 仅在有失败文件时显示 */}
         {failedFilesList.length > 0 && (
-          <Card className="border-red-200 dark:border-red-800 bg-gradient-to-br from-red-50 to-red-100/30 dark:from-red-950/20 dark:to-red-900/20">
+          <Card className="border-red-200 dark:border-red-800 bg-linear-to-br from-red-50 to-red-100/30 dark:from-red-950/20 dark:to-red-900/20">
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -620,26 +611,29 @@ export const TaskDetailView: React.FC<{
         )}
 
         {/* 文件类型分布 */}
-        {fileTypeData.length > 0 && (
-          <Card className="group hover:shadow-lg transition-all duration-300 border-0 bg-gradient-to-br from-background to-muted/20 backdrop-blur-sm">
+        {(totalFiles > 0 || taskIsRunning) && (
+          <Card className="group hover:shadow-lg transition-all duration-300 border-0 bg-linear-to-br from-background to-muted/20 backdrop-blur-sm">
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="p-2.5 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white shadow-lg">
+                  <div className="p-2.5 rounded-xl bg-linear-to-br from-indigo-500 to-purple-600 text-white shadow-lg">
                     <FolderTree className="w-5 h-5" />
                   </div>
                   <div>
                     <CardTitle className="text-xl font-semibold">文件类型分布</CardTitle>
                     <CardDescription className="text-sm mt-1">
-                      本次任务处理 {totalFiles} 个文件（成功 {successFiles}，失败 {failedFiles}
-                      ，跳过 {skippedFiles}）的类型统计和文件列表
+                      {taskIsRunning && totalFiles === 0
+                        ? '任务执行中，正在获取文件列表...'
+                        : `本次任务处理 ${totalFiles} 个文件（成功 ${successFiles}，失败 ${failedFiles}，跳过 ${skippedFiles}）的类型统计和文件列表`}
                     </CardDescription>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Badge variant="outline" className="hidden sm:flex">
-                    {fileTypeData.length} 种类型
-                  </Badge>
+                  {fileTypes.length > 0 && (
+                    <Badge variant="outline" className="hidden sm:flex">
+                      {fileTypes.length} 种类型
+                    </Badge>
+                  )}
                   <Badge variant="outline" className="hidden sm:flex">
                     {totalFiles} 个文件
                   </Badge>
@@ -648,72 +642,74 @@ export const TaskDetailView: React.FC<{
             </CardHeader>
             <CardContent className="space-y-6">
               {/* 类型统计 */}
-              <div className="space-y-4">
-                <h3 className="text-lg font-medium flex items-center gap-2">
-                  <Database className="w-5 h-5" />
-                  类型统计
-                </h3>
-                <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                  {fileTypes.map(({ type, count }, index) => {
-                    const percentage = ((count / totalFiles) * 100).toFixed(1);
-                    const colorIndex = index % CHART_COLORS.length;
+              {fileTypes.length > 0 && (
+                <div className="space-y-4">
+                  <h3 className="text-lg font-medium flex items-center gap-2">
+                    <Database className="w-5 h-5" />
+                    类型统计
+                  </h3>
+                  <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                    {fileTypes.map(({ type, count }, index) => {
+                      const percentage = ((count / totalFiles) * 100).toFixed(1);
+                      const colorIndex = index % CHART_COLORS.length;
 
-                    return (
-                      <div
-                        key={type}
-                        className="group/item relative overflow-hidden rounded-xl border bg-gradient-to-br from-background to-muted/20 p-4 hover:shadow-md transition-all duration-300 hover:scale-105"
-                      >
+                      return (
                         <div
-                          className={`absolute inset-0 opacity-5 group-hover/item:opacity-10 transition-opacity`}
-                          style={{ backgroundColor: CHART_COLORS[colorIndex] }}
-                        />
-                        <div className="relative space-y-3">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2 min-w-0">
-                              <FileIcon
-                                extension={type}
-                                size="w-4 h-4"
-                                className="text-muted-foreground shrink-0"
-                              />
-                              <span
-                                className="text-sm font-medium text-foreground/80 truncate"
-                                title={type}
-                              >
-                                {type}
-                              </span>
-                            </div>
-                            <div
-                              className="px-2 py-1 rounded-lg text-xs font-semibold shadow-sm"
-                              style={{
-                                backgroundColor: CHART_COLORS[colorIndex],
-                              }}
-                            >
-                              {count}
-                            </div>
-                          </div>
-                          <div className="space-y-2">
-                            <div className="flex items-center justify-between text-sm">
-                              <span className="text-muted-foreground">占比</span>
-                              <span className="font-medium">{percentage}%</span>
-                            </div>
-                            <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
+                          key={type}
+                          className="group/item relative overflow-hidden rounded-xl border bg-linear-to-br from-background to-muted/20 p-4 hover:shadow-md transition-all duration-300 hover:scale-105"
+                        >
+                          <div
+                            className={`absolute inset-0 opacity-5 group-hover/item:opacity-10 transition-opacity`}
+                            style={{ backgroundColor: CHART_COLORS[colorIndex] }}
+                          />
+                          <div className="relative space-y-3">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <FileIcon
+                                  extension={type}
+                                  size="w-4 h-4"
+                                  className="text-muted-foreground shrink-0"
+                                />
+                                <span
+                                  className="text-sm font-medium text-foreground/80 truncate"
+                                  title={type}
+                                >
+                                  {type}
+                                </span>
+                              </div>
                               <div
-                                className="h-full rounded-full transition-all duration-1000 ease-out"
+                                className="px-2 py-1 rounded-lg text-xs font-semibold shadow-sm"
                                 style={{
-                                  width: `${percentage}%`,
                                   backgroundColor: CHART_COLORS[colorIndex],
                                 }}
-                              />
+                              >
+                                {count}
+                              </div>
+                            </div>
+                            <div className="space-y-2">
+                              <div className="flex items-center justify-between text-sm">
+                                <span className="text-muted-foreground">占比</span>
+                                <span className="font-medium">{percentage}%</span>
+                              </div>
+                              <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
+                                <div
+                                  className="h-full rounded-full transition-all duration-1000 ease-out"
+                                  style={{
+                                    width: `${percentage}%`,
+                                    backgroundColor: CHART_COLORS[colorIndex],
+                                  }}
+                                />
+                              </div>
                             </div>
                           </div>
                         </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
+              )}
 
-              <Separator />
+              {fileTypes.length > 0 && <Separator />}
 
               {/* 文件列表 */}
               <div className="space-y-4">
@@ -786,14 +782,30 @@ export const TaskDetailView: React.FC<{
                               className="border-b hover:bg-muted/30 transition-colors"
                             >
                               <td className="px-4 py-3">
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-start gap-2">
                                   <FileIcon
                                     extension={file.type}
-                                    className="text-muted-foreground shrink-0"
+                                    className="text-muted-foreground shrink-0 mt-0.5"
                                   />
-                                  <span className="font-medium text-sm truncate max-w-[200px]">
-                                    {file.name}
-                                  </span>
+                                  <div className="min-w-0">
+                                    <span className="font-medium text-sm truncate max-w-[200px] block">
+                                      {file.name}
+                                    </span>
+                                    {file.description && (
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <p className="text-xs text-muted-foreground truncate max-w-[200px] cursor-help">
+                                            {file.description}
+                                          </p>
+                                        </TooltipTrigger>
+                                        <TooltipContent side="right" className="max-w-md">
+                                          <p className="text-xs whitespace-pre-wrap">
+                                            {file.description}
+                                          </p>
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    )}
+                                  </div>
                                 </div>
                               </td>
                               <td className="px-4 py-3 hidden md:table-cell">

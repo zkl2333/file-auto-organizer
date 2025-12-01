@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
+import fs from 'node:fs';
+import path from 'node:path';
 import { loadConfig } from '@/lib/config';
-import { DashboardStats } from '@/types';
+import { StatsService } from '@/lib/services/stats.service';
+import { FileScanService } from '@/lib/services/file-scan.service';
+import { DashboardStats, ActivityItem } from '@/types';
 
 /**
  * 获取统计信息 API
@@ -9,79 +13,108 @@ import { DashboardStats } from '@/types';
 export async function GET() {
   try {
     const config = await loadConfig();
+    const statsService = new StatsService();
+    const fileScanService = new FileScanService();
 
-    // 初始化统计信息
+    const rootDir = config.directories.root_dir;
+    const incomingDir = config.directories.incoming_dir;
+
+    // 检查目录是否存在
+    const rootDirExists = fs.existsSync(rootDir);
+    const incomingDirExists = fs.existsSync(incomingDir);
+
+    // 扫描文件
+    const rootFiles = rootDirExists ? fileScanService.scanFiles(rootDir) : [];
+    const incomingFiles = incomingDirExists ? fileScanService.getIncomingFiles(incomingDir) : [];
+
+    // 扫描分类目录
+    const categoryDirs = rootDirExists ? fileScanService.scanDirs(rootDir) : [];
+    const topLevelCategories = categoryDirs
+      .filter((d) => !d.includes(path.sep) || d.split(path.sep).length === 2)
+      .map((d) => d.replace(/[\\/]$/, ''));
+
+    // 统计每个分类的文件数
+    const categories: Record<string, number> = {};
+    for (const file of rootFiles) {
+      const parts = file.split(path.sep);
+      const category = parts.length > 1 ? parts[0] : 'Root';
+      categories[category] = (categories[category] || 0) + 1;
+    }
+
+    // 获取任务统计
+    const aggregatedStats = statsService.getStats('all', true);
+    const taskRecords = statsService.getAllTaskRecords();
+
+    // 计算错误文件数
+    const errorFiles = taskRecords.reduce((sum, r) => {
+      if (r.status === 'failed' || r.status === 'partial') {
+        return sum + (r.filesProcessed > 0 ? 1 : 0);
+      }
+      return sum;
+    }, 0);
+
+    // 生成最近活动（从任务记录）
+    const recentActivity: ActivityItem[] = taskRecords
+      .slice(-10)
+      .reverse()
+      .map((record) => ({
+        id: record.taskId,
+        type:
+          record.status === 'failed'
+            ? 'error_occurred'
+            : record.status === 'success'
+              ? 'task_completed'
+              : 'file_processed',
+        description:
+          record.status === 'failed'
+            ? `Task failed: ${record.errorMessage || 'Unknown error'}`
+            : `Processed ${record.filesProcessed} files (${record.similarityMatched} matched, ${record.aiClassified} AI)`,
+        timestamp: new Date(record.startTime),
+        details: {
+          filesProcessed: record.filesProcessed,
+          aiCalls: record.aiCalls,
+          tokensUsed: record.tokensUsed,
+          dryRun: record.dryRun,
+        },
+      }));
+
     const stats: DashboardStats = {
-      totalFiles: 0,
-      processedFiles: 0,
-      errorFiles: 0,
-      pendingFiles: 0,
-      categories: {},
-      recentActivity: [],
+      totalFiles: rootFiles.length,
+      processedFiles: aggregatedStats.totalFilesProcessed,
+      errorFiles,
+      pendingFiles: incomingFiles.length,
+      categories,
+      recentActivity,
     };
 
-    // 模拟目录统计（生产环境中应实现实际扫描）
-    stats.categories = {
-      Documents: 45,
-      Images: 120,
-      Videos: 23,
-      Others: 67,
-    };
-    stats.totalFiles = 255;
-    stats.processedFiles = 200;
-    stats.errorFiles = 5;
-    stats.pendingFiles = 50;
-
-    // 模拟最近活动
-    stats.recentActivity = [
-      {
-        id: '1',
-        type: 'file_processed',
-        description: 'Successfully processed 15 files',
-        timestamp: new Date(Date.now() - 1000 * 60 * 30), // 30分钟前
-        details: { processedCount: 15, errorsCount: 0 },
-      },
-      {
-        id: '2',
-        type: 'task_completed',
-        description: 'Scheduled task completed',
-        timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2), // 2小时前
-        details: { duration: 120, filesProcessed: 42 },
-      },
-      {
-        id: '3',
-        type: 'error_occurred',
-        description: 'Error occurred during file processing',
-        timestamp: new Date(Date.now() - 1000 * 60 * 60 * 5), // 5小时前
-        details: { errorCode: 'FILE_ACCESS_DENIED', fileName: 'protected.pdf' },
-      },
-    ];
-
-    // 返回统计信息，兼容原始格式
-    const legacyStats = {
+    const response = {
       directories: {
-        rootDir: config.directories.root_dir,
-        incomingDir: config.directories.incoming_dir,
-        rootDirExists: stats.totalFiles > 0,
-        incomingDirExists: stats.pendingFiles >= 0,
+        rootDir,
+        incomingDir,
+        rootDirExists,
+        incomingDirExists,
       },
       files: {
-        totalInRoot: stats.totalFiles,
-        totalInIncoming: stats.pendingFiles,
-        categories: Object.keys(stats.categories).length,
+        totalInRoot: rootFiles.length,
+        totalInIncoming: incomingFiles.length,
+        categories: topLevelCategories.length,
       },
       config: {
         cronSchedule: config.cron.schedule,
-        logLevel: config.logging.level,
         similarityThreshold: config.scan.similarity_threshold,
         aiBatchSize: config.ai.batch_size,
       },
-      ...stats, // 包含新的统计信息格式
+      aggregated: {
+        totalAiCalls: aggregatedStats.totalAiCalls,
+        totalTokensUsed: aggregatedStats.totalTokensUsed,
+        fileTypes: aggregatedStats.fileTypes,
+      },
+      ...stats,
     };
 
     return NextResponse.json({
       success: true,
-      data: legacyStats,
+      data: response,
     });
   } catch (error) {
     console.error('获取统计信息失败:', error);

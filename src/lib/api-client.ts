@@ -12,10 +12,19 @@ export interface Stats {
   };
   config: {
     cronSchedule: string;
-    logLevel: string;
     similarityThreshold: number;
     aiBatchSize: number;
   };
+  aggregated?: {
+    totalAiCalls: number;
+    totalTokensUsed: number;
+    fileTypes: Record<string, number>;
+  };
+  totalFiles?: number;
+  processedFiles?: number;
+  errorFiles?: number;
+  pendingFiles?: number;
+  categories?: Record<string, number>;
 }
 
 export interface TaskStatus {
@@ -135,12 +144,12 @@ export interface ProcessedFile {
   error?: string;
   method?: 'similarity' | 'ai' | 'manual';
   score?: number;
-  reasoning?: string; // AI分类原因
+  reasoning?: string;
+  description?: string;
   timestamp: number;
-  taskId?: string; // 任务ID
-  // 新增字段
-  processStage?: FileProcessStage; // 当前处理阶段
-  progress?: number; // 处理进度 0-100
+  taskId?: string;
+  processStage?: FileProcessStage;
+  progress?: number;
 }
 
 export interface TaskFileList {

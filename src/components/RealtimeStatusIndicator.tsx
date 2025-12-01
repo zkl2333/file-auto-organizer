@@ -87,6 +87,8 @@ export function RealtimeStatusIndicator({
     lastUpdateTime,
   ]);
 
+  if (!isTaskRunning) return null;
+
   return (
     <Tooltip>
       <TooltipTrigger className={className}>
@@ -101,72 +103,5 @@ export function RealtimeStatusIndicator({
       </TooltipTrigger>
       <TooltipContent>{tooltipContent}</TooltipContent>
     </Tooltip>
-  );
-}
-
-// 实时更新状态面板
-export function RealtimeStatusPanel() {
-  const { data: status } = useSWR<TaskStatus>('/api/status', api.getStatus, {
-    refreshInterval: 10000,
-  });
-  const isTaskRunning = status?.isRunning || false;
-
-  const { data: historyData } = useSWR<{ tasks: TaskRecord[] }>(
-    '/api/task-history',
-    api.getTaskHistory,
-    { refreshInterval: isTaskRunning ? 0 : 30000 }
-  );
-  const taskHistory = historyData?.tasks || [];
-
-  const [lastUpdateTime, setLastUpdateTime] = useState(() => Date.now());
-
-  useEffect(() => {
-    startTransition(() => {
-      setLastUpdateTime(Date.now());
-    });
-  }, [taskHistory.length]);
-
-  const refreshStrategy = useMemo(
-    () => ({
-      statusRefreshInterval: isTaskRunning ? 2000 : 10000,
-      historyRefreshInterval: isTaskRunning ? 0 : 60000,
-    }),
-    [isTaskRunning]
-  );
-
-  return (
-    <div className="p-4 border rounded-lg bg-muted/20 space-y-3">
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-medium">实时更新状态</h3>
-      </div>
-
-      <div className="space-y-2 text-sm">
-        <div className="flex items-center justify-between">
-          <span className="text-muted-foreground">任务状态:</span>
-          <span className={isTaskRunning ? 'text-green-600' : 'text-muted-foreground'}>
-            {isTaskRunning ? '运行中' : '空闲'}
-          </span>
-        </div>
-
-        <div className="flex items-center justify-between">
-          <span className="text-muted-foreground">更新频率:</span>
-          <span className="font-mono text-xs">{refreshStrategy.statusRefreshInterval}ms</span>
-        </div>
-
-        <div className="flex items-center justify-between">
-          <span className="text-muted-foreground">最后更新:</span>
-          <span className="font-mono text-xs">
-            {new Date(lastUpdateTime).toLocaleTimeString('zh-CN')}
-          </span>
-        </div>
-
-        {isTaskRunning && (
-          <div className="flex items-center gap-2 text-green-600 text-xs pt-2 border-t">
-            <Activity className="w-3 h-3 animate-pulse" />
-            <span>任务正在进行实时监控...</span>
-          </div>
-        )}
-      </div>
-    </div>
   );
 }

@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { logger } from '@/lib/logger';
 import { taskManager } from '@/lib/task-manager';
+import { FileStatusService } from '@/lib/services/file-status.service';
+
+const fileStatusService = new FileStatusService();
 
 // GET /api/task/[taskId]/files - 获取指定任务的文件处理结果
 export async function GET(
@@ -23,7 +26,11 @@ export async function GET(
       return NextResponse.json({ error: 'Not Found', message: '任务不存在' }, { status: 404 });
     }
 
-    const files = task.files;
+    // 优先使用内存中的文件列表，否则从磁盘加载
+    let files = task.files;
+    if (files.length === 0) {
+      files = await fileStatusService.getTaskFiles(taskId);
+    }
 
     logger.info({ taskId, fileCount: files.length }, '获取任务文件列表成功');
 

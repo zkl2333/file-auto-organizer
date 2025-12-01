@@ -13,11 +13,17 @@ import { FileMoveService } from '@/lib/services/file-move.service';
 import path from 'node:path';
 import fs from 'node:fs';
 
+/** 分类结果 */
+interface ClassifiedFile {
+  fileName: string;
+  filePath: string;
+  targetDir: string;
+  reasoning?: string;
+}
+
 /**
  * 任务执行器
- * 职责：执行任务的具体逻辑，更新任务状态和进度
- *
- * 注意：这里复用了原 MainService 的执行逻辑
+ * 负责执行文件分类任务：扫描 -> 相似度匹配 -> AI分类 -> 移动文件
  */
 export class TaskExecutor {
   private task: Task;
@@ -28,6 +34,7 @@ export class TaskExecutor {
   private fileInfoService: FileInfoService;
   private fileMoveService: FileMoveService;
   private currentKnownDirs: string[] = [];
+  private fileMap = new Map<string, ProcessedFile>();
 
   constructor(task: Task) {
     this.task = task;
@@ -37,16 +44,13 @@ export class TaskExecutor {
     this.fileMoveService = new FileMoveService();
   }
 
-  /**
-   * 执行任务
-   */
+  /** 执行任务，返回任务结果 */
   async execute(): Promise<TaskResult> {
     try {
       logger.info({ taskId: this.task.taskId, dryRun: this.task.dryRun }, '开始执行任务');
 
-      // 阶段1：扫描文件
       this.task.updateProgress({ currentStage: 'scan' });
-      const filesToProcess = await this.scanFiles();
+      const filesToProcess = this.scanFiles();
 
       if (filesToProcess.length === 0) {
         logger.info({ taskId: this.task.taskId }, '没有需要处理的文件');
@@ -61,21 +65,13 @@ export class TaskExecutor {
 
       logger.info({ taskId: this.task.taskId, fileCount: filesToProcess.length }, '发现待处理文件');
 
-      // 阶段2：处理文件
       this.task.updateProgress({ currentStage: 'process' });
       await this.processFiles(filesToProcess);
 
-      // 阶段3：完成任务
       this.task.updateProgress({ currentStage: 'finalize' });
       this.task.complete({ stats: this.task.stats });
 
-      logger.info(
-        {
-          taskId: this.task.taskId,
-          stats: this.task.stats,
-        },
-        '任务执行完成'
-      );
+      logger.info({ taskId: this.task.taskId, stats: this.task.stats }, '任务执行完成');
 
       return this.buildResult();
     } catch (error) {
@@ -84,25 +80,18 @@ export class TaskExecutor {
     }
   }
 
-  /**
-   * 扫描待处理文件
-   */
-  private async scanFiles(): Promise<string[]> {
+  /** 扫描待处理目录，返回文件路径列表 */
+  private scanFiles(): string[] {
     try {
-      const { incomingDir } = this.config;
-
-      // 解析为绝对路径
-      const absoluteIncomingDir = path.resolve(process.cwd(), incomingDir);
+      const absoluteIncomingDir = path.resolve(process.cwd(), this.config.incomingDir);
 
       if (!fs.existsSync(absoluteIncomingDir)) {
-        logger.warn({ incomingDir, absoluteIncomingDir }, '待处理目录不存在');
+        logger.warn({ dir: absoluteIncomingDir }, '待处理目录不存在');
         return [];
       }
 
-      const entries = fs.readdirSync(absoluteIncomingDir, {
-        withFileTypes: true,
-      });
-      return entries
+      return fs
+        .readdirSync(absoluteIncomingDir, { withFileTypes: true })
         .filter((entry) => entry.isFile())
         .map((entry) => path.join(absoluteIncomingDir, entry.name));
     } catch (error) {
@@ -111,11 +100,8 @@ export class TaskExecutor {
     }
   }
 
-  /**
-   * 处理文件
-   */
+  /** 处理文件：相似度匹配 -> AI分类 -> 移动 */
   private async processFiles(filePaths: string[]): Promise<void> {
-    // 初始化已知目录列表
     this.currentKnownDirs = this.fileScanService.scanDirs(this.config.rootDir);
     const knownFiles = this.fileScanService.scanFiles(this.config.rootDir);
 
@@ -128,57 +114,28 @@ export class TaskExecutor {
       '已知目录和文件统计'
     );
 
-    // 第一步：初始化文件记录
-    await this.initializeFileRecords(filePaths);
+    this.initializeFileRecords(filePaths);
 
-    // 第二步：执行相似度匹配
-    const { similarityResults, needAIClassification } = await this.performSimilarityMatching(
-      filePaths,
-      knownFiles
-    );
+    const { matched, needAI } = this.performSimilarityMatching(filePaths, knownFiles);
 
-    // 第三步：移动相似度匹配的文件
-    await this.moveSimilarityMatchedFiles(similarityResults);
+    await this.moveFiles(matched);
 
-    // 第四步：执行 AI 分类
-    const { aiResults, tokensUsed } = await this.performAIClassification(needAIClassification);
+    const { aiResults, tokensUsed } = await this.performAIClassification(needAI);
 
-    // 第五步：移动 AI 分类的文件
-    await this.moveAIClassifiedFiles(aiResults);
+    await this.moveFiles(aiResults);
 
-    // 更新最终统计
-    const fileTypes: Record<string, number> = {};
-    for (const file of this.task.files) {
-      fileTypes[file.type] = (fileTypes[file.type] || 0) + 1;
-    }
-
-    this.task.updateStats({
-      similarityMatched: similarityResults.length,
-      aiClassified: aiResults.length,
-      totalProcessed: this.task.files.length,
-      tokensUsed,
-      aiCalls:
-        aiResults.length > 0
-          ? Math.ceil(aiResults.length / (this.fullConfig.ai.batch_size || 10))
-          : 0,
-      fileTypes,
-    });
+    this.updateFinalStats(matched.length, aiResults.length, tokensUsed);
   }
 
-  /**
-   * 初始化文件记录
-   */
-  private async initializeFileRecords(filePaths: string[]): Promise<void> {
+  /** 初始化文件记录并建立 fileMap 索引 */
+  private initializeFileRecords(filePaths: string[]): void {
     for (const filePath of filePaths) {
       const fileName = path.basename(filePath);
-      const ext = FileUtils.getFileExtension(fileName);
-      const fileSize = this.getFileSize(filePath);
-
       const processedFile: ProcessedFile = {
         name: fileName,
         originalPath: filePath,
-        type: ext,
-        size: fileSize,
+        type: FileUtils.getFileExtension(fileName),
+        size: this.getFileSize(filePath),
         status: 'pending',
         timestamp: Date.now(),
         processStage: 'scan',
@@ -187,59 +144,36 @@ export class TaskExecutor {
       };
 
       this.task.addFile(processedFile);
+      this.fileMap.set(fileName, processedFile);
     }
 
     logger.info({ taskId: this.task.taskId, fileCount: filePaths.length }, '文件记录初始化完成');
   }
 
-  /**
-   * 执行相似度匹配
-   */
-  private async performSimilarityMatching(
+  /** 相似度匹配，返回匹配成功的文件和需要AI分类的文件 */
+  private performSimilarityMatching(
     filePaths: string[],
     knownFiles: string[]
-  ): Promise<{
-    similarityResults: Array<{
-      fileName: string;
-      filePath: string;
-      bestDir: string;
-      bestScore: number;
-    }>;
-    needAIClassification: string[];
-  }> {
+  ): { matched: ClassifiedFile[]; needAI: string[] } {
     logger.info({ taskId: this.task.taskId, files: filePaths.length }, '开始相似度匹配');
 
-    const similarityResults: Array<{
-      fileName: string;
-      filePath: string;
-      bestDir: string;
-      bestScore: number;
-    }> = [];
-    const needAIClassification: string[] = [];
-
-    const similarityThreshold = this.fullConfig.scan.similarity_threshold || 0.6;
+    const matched: ClassifiedFile[] = [];
+    const needAI: string[] = [];
+    const threshold = this.fullConfig.scan.similarity_threshold || 0.6;
 
     for (const filePath of filePaths) {
       const fileName = path.basename(filePath);
-      const file = this.task.files.find((f) => f.name === fileName);
-
+      const file = this.fileMap.get(fileName);
       if (!file) continue;
 
-      // 更新状态为相似度匹配中
       file.status = 'similarity_matching';
       file.processStage = 'similarity';
       file.progress = 25;
 
       const { bestDir, bestScore } = SimilarityUtils.findMostSimilarFile(fileName, knownFiles);
 
-      if (bestDir && bestScore >= similarityThreshold) {
-        // 相似度匹配成功
-        similarityResults.push({
-          fileName,
-          filePath,
-          bestDir,
-          bestScore,
-        });
+      if (bestDir && bestScore >= threshold) {
+        matched.push({ fileName, filePath, targetDir: bestDir });
 
         file.status = 'similarity_matched';
         file.method = 'similarity';
@@ -247,18 +181,14 @@ export class TaskExecutor {
         file.targetPath = path.join(this.config.rootDir, bestDir, fileName);
         file.progress = 50;
 
+        this.updateKnownDirectories(path.join(this.config.rootDir, bestDir));
+
         logger.debug(
-          {
-            taskId: this.task.taskId,
-            fileName,
-            bestDir,
-            score: bestScore.toFixed(2),
-          },
+          { taskId: this.task.taskId, fileName, bestDir, score: bestScore.toFixed(2) },
           '找到相似文件'
         );
       } else {
-        // 需要 AI 分类
-        needAIClassification.push(filePath);
+        needAI.push(filePath);
         file.method = 'ai';
         file.score = bestScore;
         file.progress = 25;
@@ -266,273 +196,191 @@ export class TaskExecutor {
     }
 
     logger.info(
-      {
-        taskId: this.task.taskId,
-        similarityMatched: similarityResults.length,
-        needAI: needAIClassification.length,
-      },
+      { taskId: this.task.taskId, matched: matched.length, needAI: needAI.length },
       '相似度匹配完成'
     );
 
-    return { similarityResults, needAIClassification };
+    return { matched, needAI };
   }
 
-  /**
-   * 移动相似度匹配的文件
-   */
-  private async moveSimilarityMatchedFiles(
-    similarityResults: Array<{
-      fileName: string;
-      filePath: string;
-      bestDir: string;
-      bestScore: number;
-    }>
-  ): Promise<void> {
-    if (similarityResults.length === 0) return;
+  /** 移动文件到目标目录，dryRun 模式下只更新状态 */
+  private async moveFiles(files: ClassifiedFile[]): Promise<void> {
+    if (files.length === 0) return;
 
-    logger.info(
-      { taskId: this.task.taskId, files: similarityResults.length },
-      '开始移动相似度匹配的文件'
-    );
+    logger.info({ taskId: this.task.taskId, files: files.length }, '开始移动文件');
 
-    for (const result of similarityResults) {
-      const file = this.task.files.find((f) => f.name === result.fileName);
+    for (const { fileName, filePath, targetDir } of files) {
+      const file = this.fileMap.get(fileName);
       if (!file) continue;
 
-      const targetPath = path.join(this.config.rootDir, result.bestDir, result.fileName);
+      const targetPath = path.join(this.config.rootDir, targetDir, fileName);
 
       if (this.task.dryRun) {
-        // 预演模式，不实际移动
-        file.status = 'success';
-        file.processStage = 'complete';
-        file.progress = 100;
-        file.targetPath = targetPath;
+        Object.assign(file, {
+          status: 'success',
+          processStage: 'complete',
+          progress: 100,
+          targetPath,
+        });
       } else {
-        // 实际移动文件
         file.status = 'moving';
         file.processStage = 'move';
         file.progress = 75;
 
-        const moveResult = await this.fileMoveService.moveFile(result.filePath, targetPath);
+        const result = await this.fileMoveService.moveFile(filePath, targetPath);
 
-        if (moveResult.success) {
-          file.status = 'success';
-          file.targetPath = moveResult.finalPath;
-          file.progress = 100;
-          file.processStage = 'complete';
-
-          // 更新已知目录列表
-          const targetDir = path.dirname(moveResult.finalPath);
-          this.updateKnownDirectories(targetDir);
+        if (result.success) {
+          Object.assign(file, {
+            status: 'success',
+            targetPath: result.finalPath,
+            progress: 100,
+            processStage: 'complete',
+          });
         } else {
-          file.status = 'failed';
-          file.progress = 100;
-          file.processStage = 'complete';
-          logger.error(
-            {
-              taskId: this.task.taskId,
-              fileName: result.fileName,
-              error: moveResult.error,
-            },
-            '文件移动失败'
-          );
+          Object.assign(file, { status: 'failed', progress: 100, processStage: 'complete' });
+          logger.error({ taskId: this.task.taskId, fileName, error: result.error }, '文件移动失败');
         }
       }
     }
 
-    logger.info(
-      { taskId: this.task.taskId, files: similarityResults.length },
-      '相似度匹配文件移动完成'
-    );
+    logger.info({ taskId: this.task.taskId, files: files.length }, '文件移动完成');
   }
 
-  /**
-   * 执行 AI 分类
-   */
-  private async performAIClassification(filePaths: string[]): Promise<{
-    aiResults: Array<{
-      fileName: string;
-      filePath: string;
-      targetDir: string;
-      reasoning?: string;
-    }>;
-    tokensUsed: number;
-  }> {
-    if (filePaths.length === 0) {
-      return { aiResults: [], tokensUsed: 0 };
-    }
+  /** AI 分类：获取文件描述 -> 批量调用AI -> 处理结果 */
+  private async performAIClassification(
+    filePaths: string[]
+  ): Promise<{ aiResults: ClassifiedFile[]; tokensUsed: number }> {
+    if (filePaths.length === 0) return { aiResults: [], tokensUsed: 0 };
 
     logger.info({ taskId: this.task.taskId, files: filePaths.length }, '开始 AI 分类');
 
-    // 准备文件描述
-    const filesWithDescription: Array<{ fileName: string; description: string; filePath: string }> =
-      [];
-    for (const filePath of filePaths) {
-      const fileName = path.basename(filePath);
-      const file = this.task.files.find((f) => f.name === fileName);
+    const filesWithDesc = await this.prepareFileDescriptions(filePaths);
 
-      if (!file) continue;
-
-      file.status = 'ai_classifying';
-      file.processStage = 'ai';
-      file.progress = 50;
-
-      const description = await this.fileInfoService.getFileDescription(filePath);
-      filesWithDescription.push({ fileName, description, filePath });
-    }
-
-    // 批量调用 AI 分类
     try {
-      const batchSize = this.fullConfig.ai.batch_size || 10;
-      const batches = FileUtils.chunkArray(filesWithDescription, batchSize);
-
-      const allClassifications: Array<{ fileName: string; path: string; reasoning?: string }> = [];
-      let totalTokensUsed = 0;
-
-      for (let i = 0; i < batches.length; i++) {
-        const batch = batches[i];
-        logger.info(
-          { taskId: this.task.taskId, batchIndex: i + 1, totalBatches: batches.length },
-          `处理 AI 分类批次 ${i + 1}/${batches.length}`
-        );
-
-        const { classifications, tokensUsed } = await this.aiClassificationService.classifyBatch(
-          batch.map((f) => ({ fileName: f.fileName, description: f.description })),
-          this.currentKnownDirs
-        );
-
-        allClassifications.push(...classifications);
-        totalTokensUsed += tokensUsed;
-
-        // 批次间延迟
-        if (i < batches.length - 1) {
-          await new Promise((resolve) => setTimeout(resolve, 1000));
-        }
-      }
-
-      // 更新文件状态
-      const aiResults: Array<{
-        fileName: string;
-        filePath: string;
-        targetDir: string;
-        reasoning?: string;
-      }> = [];
-
-      for (const classification of allClassifications) {
-        const fileWithDesc = filesWithDescription.find(
-          (f) => f.fileName === classification.fileName
-        );
-        if (!fileWithDesc) continue;
-
-        const file = this.task.files.find((f) => f.name === classification.fileName);
-        if (!file) continue;
-
-        file.status = 'ai_classified';
-        file.progress = 60;
-        file.reasoning = classification.reasoning;
-
-        aiResults.push({
-          fileName: classification.fileName,
-          filePath: fileWithDesc.filePath,
-          targetDir: classification.path,
-          reasoning: classification.reasoning,
-        });
-      }
+      const { classifications, tokensUsed } = await this.classifyInBatches(filesWithDesc);
+      const aiResults = this.processClassificationResults(classifications, filesWithDesc);
 
       logger.info(
-        {
-          taskId: this.task.taskId,
-          classified: aiResults.length,
-          tokensUsed: totalTokensUsed,
-        },
+        { taskId: this.task.taskId, classified: aiResults.length, tokensUsed },
         'AI 分类完成'
       );
 
-      return { aiResults, tokensUsed: totalTokensUsed };
+      return { aiResults, tokensUsed };
     } catch (error) {
       logger.error({ taskId: this.task.taskId, error }, 'AI 分类失败');
-
-      // 标记所有文件为失败
-      for (const filePath of filePaths) {
-        const fileName = path.basename(filePath);
-        const file = this.task.files.find((f) => f.name === fileName);
-        if (file) {
-          file.status = 'failed';
-          file.progress = 100;
-          file.processStage = 'complete';
-        }
-      }
-
+      this.markFilesAsFailed(filePaths);
       return { aiResults: [], tokensUsed: 0 };
     }
   }
 
-  /**
-   * 移动 AI 分类的文件
-   */
-  private async moveAIClassifiedFiles(
-    aiResults: Array<{
-      fileName: string;
-      filePath: string;
-      targetDir: string;
-      reasoning?: string;
-    }>
-  ): Promise<void> {
-    if (aiResults.length === 0) return;
+  /** 获取文件描述信息用于AI分类 */
+  private async prepareFileDescriptions(
+    filePaths: string[]
+  ): Promise<Array<{ fileName: string; description: string; filePath: string }>> {
+    const result: Array<{ fileName: string; description: string; filePath: string }> = [];
 
-    logger.info({ taskId: this.task.taskId, files: aiResults.length }, '开始移动 AI 分类的文件');
+    for (const filePath of filePaths) {
+      const fileName = path.basename(filePath);
+      const file = this.fileMap.get(fileName);
 
-    for (const result of aiResults) {
-      const file = this.task.files.find((f) => f.name === result.fileName);
-      if (!file) continue;
+      if (file) {
+        file.status = 'ai_classifying';
+        file.processStage = 'ai';
+        file.progress = 50;
+      }
 
-      const targetPath = path.join(this.config.rootDir, result.targetDir, result.fileName);
-      file.targetPath = targetPath;
+      const description = await this.fileInfoService.getFileDescription(filePath);
+      logger.info({ taskId: this.task.taskId, fileName, description }, '获取文件描述');
 
-      if (this.task.dryRun) {
-        // 预演模式，不实际移动
-        file.status = 'success';
-        file.processStage = 'complete';
-        file.progress = 100;
-      } else {
-        // 实际移动文件
-        file.status = 'moving';
-        file.processStage = 'move';
-        file.progress = 75;
+      if (file) {
+        file.description = description;
+      }
 
-        const moveResult = await this.fileMoveService.moveFile(result.filePath, targetPath);
+      result.push({ fileName, description, filePath });
+    }
 
-        if (moveResult.success) {
-          file.status = 'success';
-          file.targetPath = moveResult.finalPath;
-          file.progress = 100;
-          file.processStage = 'complete';
+    return result;
+  }
 
-          // 更新已知目录列表
-          const targetDir = path.dirname(moveResult.finalPath);
-          this.updateKnownDirectories(targetDir);
-        } else {
-          file.status = 'failed';
-          file.progress = 100;
-          file.processStage = 'complete';
-          logger.error(
-            {
-              taskId: this.task.taskId,
-              fileName: result.fileName,
-              error: moveResult.error,
-            },
-            '文件移动失败'
-          );
-        }
+  /** 分批调用AI分类服务，批次间更新已知目录并延迟1秒 */
+  private async classifyInBatches(
+    filesWithDesc: Array<{ fileName: string; description: string }>
+  ): Promise<{
+    classifications: Array<{ fileName: string; path: string; reasoning?: string }>;
+    tokensUsed: number;
+  }> {
+    const batchSize = this.fullConfig.ai.batch_size || 10;
+    const batches = FileUtils.chunkArray(filesWithDesc, batchSize);
+
+    const allClassifications: Array<{ fileName: string; path: string; reasoning?: string }> = [];
+    let totalTokensUsed = 0;
+
+    for (let i = 0; i < batches.length; i++) {
+      logger.info(
+        {
+          taskId: this.task.taskId,
+          batch: `${i + 1}/${batches.length}`,
+          knownDirs: this.currentKnownDirs.length,
+        },
+        '处理 AI 分类批次'
+      );
+
+      const { classifications, tokensUsed } = await this.aiClassificationService.classifyBatch(
+        batches[i].map((f) => ({ fileName: f.fileName, description: f.description })),
+        this.currentKnownDirs
+      );
+
+      // 批次完成后立即更新已知目录，供下一批次参考
+      for (const { path: targetDir } of classifications) {
+        this.updateKnownDirectories(path.join(this.config.rootDir, targetDir));
+      }
+
+      allClassifications.push(...classifications);
+      totalTokensUsed += tokensUsed;
+
+      if (i < batches.length - 1) {
+        await new Promise((resolve) => setTimeout(resolve, 1000));
       }
     }
 
-    logger.info({ taskId: this.task.taskId, files: aiResults.length }, 'AI 分类文件移动完成');
+    return { classifications: allClassifications, tokensUsed: totalTokensUsed };
   }
 
-  /**
-   * 更新已知目录列表
-   */
+  /** 处理AI分类结果，更新文件状态 */
+  private processClassificationResults(
+    classifications: Array<{ fileName: string; path: string; reasoning?: string }>,
+    filesWithDesc: Array<{ fileName: string; filePath: string }>
+  ): ClassifiedFile[] {
+    const results: ClassifiedFile[] = [];
+    const filePathMap = new Map(filesWithDesc.map((f) => [f.fileName, f.filePath]));
+
+    for (const { fileName, path: targetDir, reasoning } of classifications) {
+      const filePath = filePathMap.get(fileName);
+      if (!filePath) continue;
+
+      const file = this.fileMap.get(fileName);
+      if (file) {
+        file.status = 'ai_classified';
+        file.progress = 60;
+        file.reasoning = reasoning;
+      }
+
+      results.push({ fileName, filePath, targetDir, reasoning });
+    }
+
+    return results;
+  }
+
+  private markFilesAsFailed(filePaths: string[]): void {
+    for (const filePath of filePaths) {
+      const file = this.fileMap.get(path.basename(filePath));
+      if (file) {
+        Object.assign(file, { status: 'failed', progress: 100, processStage: 'complete' });
+      }
+    }
+  }
+
+  /** 更新已知目录列表，用于后续AI分类参考 */
   private updateKnownDirectories(newDirPath: string): void {
     const relativeDir = path.relative(this.config.rootDir, newDirPath);
     if (relativeDir && !this.currentKnownDirs.includes(relativeDir)) {
@@ -541,9 +389,27 @@ export class TaskExecutor {
     }
   }
 
-  /**
-   * 构建任务结果
-   */
+  private updateFinalStats(
+    similarityMatched: number,
+    aiClassified: number,
+    tokensUsed: number
+  ): void {
+    const fileTypes: Record<string, number> = {};
+    for (const file of this.task.files) {
+      fileTypes[file.type] = (fileTypes[file.type] || 0) + 1;
+    }
+
+    this.task.updateStats({
+      similarityMatched,
+      aiClassified,
+      totalProcessed: this.task.files.length,
+      tokensUsed,
+      aiCalls:
+        aiClassified > 0 ? Math.ceil(aiClassified / (this.fullConfig.ai.batch_size || 10)) : 0,
+      fileTypes,
+    });
+  }
+
   private buildResult(): TaskResult {
     return {
       taskId: this.task.taskId,
@@ -554,14 +420,10 @@ export class TaskExecutor {
     };
   }
 
-  // ========== 辅助方法 ==========
-
   private getFileSize(filePath: string): string {
     try {
-      const stats = fs.statSync(filePath);
-      return TaskUtils.formatFileSize(stats.size);
-    } catch (error) {
-      logger.warn({ filePath, error }, '获取文件大小失败');
+      return TaskUtils.formatFileSize(fs.statSync(filePath).size);
+    } catch {
       return '0 B';
     }
   }

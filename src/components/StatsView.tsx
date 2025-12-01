@@ -290,11 +290,11 @@ export const StatsView: React.FC<StatsViewProps> = ({ timeRange = 'week' }) => {
       {/* 图表区域 - 现代设计 */}
       <div className="grid gap-6 grid-cols-1 xl:grid-cols-2">
         {/* 文件类型分布图表 */}
-        <Card className="group hover:shadow-lg transition-all duration-300 border-0 bg-gradient-to-br from-background to-muted/20 backdrop-blur-sm">
+        <Card className="group hover:shadow-lg transition-all duration-300 border-0 bg-linear-to-br from-background to-muted/20 backdrop-blur-sm">
           <CardHeader className="pb-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="p-2.5 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 text-white shadow-lg">
+                <div className="p-2.5 rounded-xl bg-linear-to-br from-blue-500 to-purple-600 text-white shadow-lg">
                   <FolderTree className="w-5 h-5" />
                 </div>
                 <div>
@@ -400,11 +400,11 @@ export const StatsView: React.FC<StatsViewProps> = ({ timeRange = 'week' }) => {
         </Card>
 
         {/* 整理趋势图表 */}
-        <Card className="group hover:shadow-lg transition-all duration-300 border-0 bg-gradient-to-br from-background to-muted/20 backdrop-blur-sm">
+        <Card className="group hover:shadow-lg transition-all duration-300 border-0 bg-linear-to-br from-background to-muted/20 backdrop-blur-sm">
           <CardHeader className="pb-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="p-2.5 rounded-xl bg-gradient-to-br from-green-500 to-teal-600 text-white shadow-lg">
+                <div className="p-2.5 rounded-xl bg-linear-to-br from-green-500 to-teal-600 text-white shadow-lg">
                   <TrendingUp className="w-5 h-5" />
                 </div>
                 <div>
