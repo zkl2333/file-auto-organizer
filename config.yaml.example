@@ -17,11 +17,6 @@ cron:
   # "*/5 * * * *" - 每5分钟
   # "0 0 * * *"   - 每天午夜
 
-logging:
-  level: "info"                        # 日志级别: debug, info, warn, error
-  dir: "/app/logs"                     # 日志文件目录（Docker映射路径）
-
-
 timezone: "Asia/Shanghai"              # 时区设置
 
 scan:

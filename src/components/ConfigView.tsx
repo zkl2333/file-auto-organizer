@@ -6,13 +6,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { IconLoader2 } from '@tabler/icons-react';
 import { api, type ConfigJson } from '@/lib/api-client';
@@ -279,45 +272,6 @@ export const ConfigView: React.FC = () => {
             <p className="text-xs text-muted-foreground">
               示例：0 * * * * (每小时)、0 0 * * * (每天)、*/30 * * * * (每30分钟)
             </p>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* 日志配置 */}
-      <Card>
-        <CardHeader>
-          <CardTitle>日志配置</CardTitle>
-          <CardDescription>配置日志级别和存储位置</CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="grid gap-2">
-              <Label htmlFor="log_level">日志级别</Label>
-              <Select
-                value={config.logging.level}
-                onValueChange={(value) => updateConfig('logging', 'level', value)}
-              >
-                <SelectTrigger id="log_level">
-                  <SelectValue placeholder="选择日志级别" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="trace">Trace</SelectItem>
-                  <SelectItem value="debug">Debug</SelectItem>
-                  <SelectItem value="info">Info</SelectItem>
-                  <SelectItem value="warn">Warn</SelectItem>
-                  <SelectItem value="error">Error</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="log_dir">日志目录</Label>
-              <Input
-                id="log_dir"
-                placeholder="./logs"
-                value={config.logging.dir}
-                onChange={(e) => updateConfig('logging', 'dir', e.target.value)}
-              />
-            </div>
           </div>
         </CardContent>
       </Card>

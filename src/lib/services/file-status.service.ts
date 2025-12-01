@@ -10,8 +10,7 @@ export class FileStatusService {
   private tasksDir: string;
 
   constructor() {
-    // 使用项目根目录下的 logs/tasks 目录
-    this.tasksDir = path.join(process.cwd(), 'logs', 'tasks');
+    this.tasksDir = path.join(process.cwd(), 'data', 'tasks');
     this.ensureTasksDir();
   }
 

@@ -8,9 +8,6 @@ directories:
 cron:
   enabled: false
   schedule: '*/5 * * * *'
-logging:
-  level: debug
-  dir: ./logs
 scan:
   max_depth: 3
   similarity_threshold: 0.65

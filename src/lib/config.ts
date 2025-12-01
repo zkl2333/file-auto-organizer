@@ -15,10 +15,6 @@ interface AppConfig {
     enabled: boolean;
     schedule: string;
   };
-  logging: {
-    level: string;
-    dir: string;
-  };
   timezone: string;
   scan: {
     max_depth: number;
@@ -48,10 +44,6 @@ const defaultConfig: AppConfig = {
   cron: {
     enabled: false,
     schedule: '0 */6 * * *', // 每6小时执行一次
-  },
-  logging: {
-    level: 'info',
-    dir: './logs',
   },
   scan: {
     max_depth: 10,
@@ -129,10 +121,6 @@ export async function loadConfig(configPath?: string): Promise<AppConfig> {
             ...defaultConfig.cron,
             ...userConfig.cron,
           },
-          logging: {
-            ...defaultConfig.logging,
-            ...userConfig.logging,
-          },
           scan: {
             ...defaultConfig.scan,
             ...userConfig.scan,
@@ -208,10 +196,6 @@ export function updateConfig(updates: Partial<AppConfig>): void {
       ...currentConfig.cron,
       ...updates.cron,
     },
-    logging: {
-      ...currentConfig.logging,
-      ...updates.logging,
-    },
     scan: {
       ...currentConfig.scan,
       ...updates.scan,
@@ -257,10 +241,6 @@ export function applyEnvOverrides(): void {
     directories: {
       root_dir: process.env.ROOT_DIR || currentConfig.directories.root_dir,
       incoming_dir: process.env.INCOMING_DIR || currentConfig.directories.incoming_dir,
-    },
-    logging: {
-      level: process.env.LOG_LEVEL || currentConfig.logging.level,
-      dir: process.env.LOG_DIR || currentConfig.logging.dir,
     },
     scan: {
       similarity_threshold: parseFloat(

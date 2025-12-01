@@ -2,15 +2,14 @@ import pino from 'pino';
 import fs from 'node:fs';
 import path from 'node:path';
 import { createStream } from 'rotating-file-stream';
-import { getConfig } from './config';
 
 /**
  * 简化的日志系统
  * 单一日志文件（按天轮转） + 控制台输出
  */
 
-const config = getConfig();
-const LOG_DIR = path.resolve(config.logging.dir);
+const LOG_LEVEL = (process.env.LOG_LEVEL || 'info') as pino.Level;
+const LOG_DIR = path.join(process.cwd(), 'logs');
 
 // 确保日志目录存在
 if (!fs.existsSync(LOG_DIR)) {
@@ -38,12 +37,12 @@ const rotatingStream = createStream(
 // 创建日志器实例
 export const logger = pino(
   {
-    level: config.logging.level || process.env.LOG_LEVEL || 'info',
+    level: LOG_LEVEL,
     timestamp: pino.stdTimeFunctions.isoTime,
   },
   pino.multistream([
-    { stream: process.stdout, level: config.logging.level || 'info' },
-    { stream: rotatingStream, level: config.logging.level || 'info' },
+    { stream: process.stdout, level: LOG_LEVEL },
+    { stream: rotatingStream, level: LOG_LEVEL },
   ])
 );
 

@@ -80,10 +80,6 @@ directories:
 cron:
   enabled: true # 是否启用定时任务
   schedule: '0 */6 * * *' # cron 表达式（每6小时执行一次）
-
-logging:
-  level: 'info' # 日志级别
-  dir: './logs' # 日志目录
 ```
 
 ## 🎯 工作流程
@@ -129,7 +125,8 @@ logging:
 │   ├── lib/               # 工具库
 │   └── types/             # TypeScript 类型
 ├── public/                # 静态资源
-├── logs/                  # 日志目录
+├── data/                  # 持久化数据（统计、任务记录）
+├── logs/                  # 日志文件（可清理）
 └── config.yaml           # 配置文件
 ```
 
@@ -152,6 +149,7 @@ docker build -t file-auto-organizer .
 docker run -d \
   -p 8080:8080 \
   -v ~/Downloads:/data:rw \
+  -v ./data:/app/data:rw \
   -v ./logs:/app/logs:rw \
   -v ./config.yaml:/app/config.yaml:ro \
   file-auto-organizer
@@ -161,6 +159,7 @@ docker run -d \
 
 - `NODE_ENV`: 运行环境（development/production）
 - `PORT`: 服务端口（默认 8080）
+- `LOG_LEVEL`: 日志级别（trace/debug/info/warn/error，默认 info）
 
 ## 🤝 贡献
 

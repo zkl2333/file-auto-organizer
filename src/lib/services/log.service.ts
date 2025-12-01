@@ -1,12 +1,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { logger } from '@/lib/logger';
-import { getConfig } from '@/lib/config';
 
 /**
  * 简化的日志服务
  * 读取按天轮转的日志文件 logs/app-YYYY-MM-DD.log
  */
+
+const LOG_DIR = path.join(process.cwd(), 'logs');
 
 /**
  * 读取日志文件（读取最新的日志文件）
@@ -15,8 +16,7 @@ import { getConfig } from '@/lib/config';
  */
 export async function readLogFiles(limit: number = 200): Promise<string[]> {
   try {
-    const config = getConfig();
-    const logDir = path.resolve(config.logging.dir);
+    const logDir = LOG_DIR;
 
     // 检查日志目录是否存在
     if (!fs.existsSync(logDir)) {
@@ -64,8 +64,7 @@ export async function readLogFiles(limit: number = 200): Promise<string[]> {
  * 获取日志文件信息
  */
 export function getLogFileInfo() {
-  const config = getConfig();
-  const logDir = path.resolve(config.logging.dir);
+  const logDir = LOG_DIR;
 
   try {
     if (!fs.existsSync(logDir)) {
@@ -134,8 +133,7 @@ export function getLogFileInfo() {
  * 清理旧日志文件（保留最近 N 天）
  */
 export function cleanupOldLogs(daysToKeep: number = 30): void {
-  const config = getConfig();
-  const logsDir = path.resolve(config.logging.dir);
+  const logsDir = LOG_DIR;
 
   try {
     if (!fs.existsSync(logsDir)) {

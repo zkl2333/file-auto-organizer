@@ -44,9 +44,8 @@ export class StatsService {
   private statsFilePath: string;
 
   constructor() {
-    // 使用项目根目录下的 logs 目录
-    const logsDir = path.join(process.cwd(), 'logs');
-    this.statsFilePath = path.join(logsDir, 'stats.json');
+    const dataDir = path.join(process.cwd(), 'data');
+    this.statsFilePath = path.join(dataDir, 'stats.json');
     this.ensureStatsFile();
   }
 

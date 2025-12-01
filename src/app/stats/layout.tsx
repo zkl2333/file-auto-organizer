@@ -202,7 +202,7 @@ export default function StatsLayout({ children }: { children: React.ReactNode })
       {stats && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4">
           <Card className="group hover:shadow-md transition-all duration-300 overflow-hidden relative">
-            <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+            <div className="absolute inset-0 bg-linear-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
             <CardHeader className="pb-3 relative">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -221,7 +221,7 @@ export default function StatsLayout({ children }: { children: React.ReactNode })
           </Card>
 
           <Card className="group hover:shadow-md transition-all duration-300 overflow-hidden relative">
-            <div className="absolute inset-0 bg-gradient-to-br from-amber-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+            <div className="absolute inset-0 bg-linear-to-br from-amber-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
             <CardHeader className="pb-3 relative">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -240,7 +240,7 @@ export default function StatsLayout({ children }: { children: React.ReactNode })
           </Card>
 
           <Card className="group hover:shadow-md transition-all duration-300 overflow-hidden relative">
-            <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+            <div className="absolute inset-0 bg-linear-to-br from-cyan-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
             <CardHeader className="pb-3 relative">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">

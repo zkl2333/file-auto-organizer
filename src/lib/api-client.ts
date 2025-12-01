@@ -219,7 +219,11 @@ async function handleApiRequest<T>(
 
 export const api = {
   getStats: async (): Promise<Stats> => {
-    return handleApiRequest(fetch('/api/stats'), '获取系统统计信息失败');
+    const response = await handleApiRequest<{ success: boolean; data: Stats }>(
+      fetch('/api/stats'),
+      '获取系统统计信息失败'
+    );
+    return response.data;
   },
 
   getStatus: async (): Promise<TaskStatus> => {
