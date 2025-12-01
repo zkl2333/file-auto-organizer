@@ -128,11 +128,9 @@ export class TaskExecutor {
 
     await this.moveFiles(matched);
 
-    const { aiResults, tokensUsed } = await this.performAIClassification(needAI);
+    const { tokensUsed, aiClassified } = await this.performAIClassification(needAI);
 
-    await this.moveFiles(aiResults);
-
-    this.updateFinalStats(matched.length, aiResults.length, tokensUsed);
+    this.updateFinalStats(matched.length, aiClassified, tokensUsed);
   }
 
   /** 初始化文件记录并建立 fileMap 索引 */
@@ -241,27 +239,59 @@ export class TaskExecutor {
   /** AI 分类：获取文件描述 -> 批量调用AI -> 处理结果 */
   private async performAIClassification(
     filePaths: string[]
-  ): Promise<{ aiResults: ClassifiedFile[]; tokensUsed: number }> {
-    if (filePaths.length === 0) return { aiResults: [], tokensUsed: 0 };
+  ): Promise<{ tokensUsed: number; aiClassified: number }> {
+    if (filePaths.length === 0) return { tokensUsed: 0, aiClassified: 0 };
 
     logger.info({ taskId: this.task.taskId, files: filePaths.length }, '开始 AI 分类');
 
     const filesWithDesc = await this.prepareFileDescriptions(filePaths);
+    const batchSize = this.fullConfig.ai.batch_size || 10;
+    const batches = FileUtils.chunkArray(filesWithDesc, batchSize);
+
+    let totalTokensUsed = 0;
+    let aiClassified = 0;
 
     try {
-      const { classifications, tokensUsed } = await this.classifyInBatches(filesWithDesc);
-      const aiResults = this.processClassificationResults(classifications);
+      for (let i = 0; i < batches.length; i++) {
+        const batch = batches[i];
+
+        // 1. 调用 AI 分类当前批次
+        const { classifications, tokensUsed } = await this.classifyBatch(batch, i, batches.length);
+
+        // 2. 更新状态和已知目录，构建移动列表
+        const results: ClassifiedFile[] = [];
+        for (const { fileName, path: targetDir, reasoning, filePath } of classifications) {
+          this.updateFile(filePath, {
+            status: 'ai_classified',
+            reasoning,
+            targetPath: path.join(this.config.rootDir, targetDir, fileName),
+          });
+          this.updateKnownDirectories(path.join(this.config.rootDir, targetDir));
+          results.push({ fileName, filePath, targetDir, reasoning });
+        }
+
+        // 3. 立即移动当前批次文件
+        await this.moveFiles(results);
+
+        totalTokensUsed += tokensUsed;
+        aiClassified += results.length;
+
+        // 批次间延迟
+        if (i < batches.length - 1) {
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+        }
+      }
 
       logger.info(
-        { taskId: this.task.taskId, classified: aiResults.length, tokensUsed },
+        { taskId: this.task.taskId, classified: aiClassified, tokensUsed: totalTokensUsed },
         'AI 分类完成'
       );
 
-      return { aiResults, tokensUsed };
+      return { tokensUsed: totalTokensUsed, aiClassified };
     } catch (error) {
       logger.error({ taskId: this.task.taskId, error }, 'AI 分类失败');
       this.markFilesAsFailed(filePaths);
-      return { aiResults: [], tokensUsed: 0 };
+      return { tokensUsed: totalTokensUsed, aiClassified };
     }
   }
 
@@ -287,9 +317,11 @@ export class TaskExecutor {
     return result;
   }
 
-  /** 分批调用AI分类服务，批次间更新已知目录并延迟1秒 */
-  private async classifyInBatches(
-    filesWithDesc: Array<{ fileName: string; description: string; filePath: string }>
+  /** 调用AI分类服务处理单个批次 */
+  private async classifyBatch(
+    batch: Array<{ fileName: string; description: string; filePath: string }>,
+    batchIndex: number,
+    totalBatches: number
   ): Promise<{
     classifications: Array<{
       fileName: string;
@@ -299,71 +331,21 @@ export class TaskExecutor {
     }>;
     tokensUsed: number;
   }> {
-    const batchSize = this.fullConfig.ai.batch_size || 10;
-    const batches = FileUtils.chunkArray(filesWithDesc, batchSize);
-
-    const allClassifications: Array<{
-      fileName: string;
-      path: string;
-      reasoning?: string;
-      filePath: string;
-    }> = [];
-    let totalTokensUsed = 0;
-
-    for (let i = 0; i < batches.length; i++) {
-      const batch = batches[i];
-
-      // 更新批次内文件状态为 AI 分类中
-      for (const { filePath } of batch) {
-        this.updateFile(filePath, { status: 'ai_classifying' });
-      }
-
-      logger.info(
-        {
-          taskId: this.task.taskId,
-          batch: `${i + 1}/${batches.length}`,
-          knownDirs: this.currentKnownDirs.length,
-        },
-        '处理 AI 分类批次'
-      );
-
-      const { classifications, tokensUsed } = await this.aiClassificationService.classifyBatch(
-        batch,
-        this.currentKnownDirs
-      );
-
-      // 批次完成后立即更新该批次文件的状态和已知目录
-      for (const { fileName, path: targetDir, reasoning, filePath } of classifications) {
-        this.updateFile(filePath, {
-          status: 'ai_classified',
-          reasoning,
-          targetPath: path.join(this.config.rootDir, targetDir, fileName),
-        });
-        this.updateKnownDirectories(path.join(this.config.rootDir, targetDir));
-        allClassifications.push({ fileName, path: targetDir, reasoning, filePath });
-      }
-
-      totalTokensUsed += tokensUsed;
-
-      if (i < batches.length - 1) {
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-      }
+    // 更新批次内文件状态为 AI 分类中
+    for (const { filePath } of batch) {
+      this.updateFile(filePath, { status: 'ai_classifying' });
     }
 
-    return { classifications: allClassifications, tokensUsed: totalTokensUsed };
-  }
+    logger.info(
+      {
+        taskId: this.task.taskId,
+        batch: `${batchIndex + 1}/${totalBatches}`,
+        knownDirs: this.currentKnownDirs.length,
+      },
+      '处理 AI 分类批次'
+    );
 
-  /** 处理AI分类结果，构建移动文件列表 */
-  private processClassificationResults(
-    classifications: Array<{ fileName: string; path: string; reasoning?: string; filePath: string }>
-  ): ClassifiedFile[] {
-    // 状态已在 classifyInBatches 中更新，这里只构建移动列表
-    return classifications.map(({ fileName, path: targetDir, reasoning, filePath }) => ({
-      fileName,
-      filePath,
-      targetDir,
-      reasoning,
-    }));
+    return this.aiClassificationService.classifyBatch(batch, this.currentKnownDirs);
   }
 
   private markFilesAsFailed(filePaths: string[]): void {

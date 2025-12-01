@@ -23,7 +23,9 @@ export default function StatsLayout({ children }: { children: React.ReactNode })
   const { data: status } = useSWR<TaskStatus>('/api/status', api.getStatus, {
     refreshInterval: 10000,
   });
-  const { data: stats } = useSWR<Stats>('/api/stats', api.getStats);
+  const { data: stats } = useSWR<Stats>('/api/stats', api.getStats, {
+    refreshInterval: 10000,
+  });
 
   const formatTime = (isoTime: string | null | undefined) => {
     if (!isoTime) return '未执行';

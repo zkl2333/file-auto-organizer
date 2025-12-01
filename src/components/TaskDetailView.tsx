@@ -91,18 +91,27 @@ export const TaskDetailView: React.FC<{
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedFileType, setSelectedFileType] = useState('all');
 
+  // 使用实时轮询获取任务详情
+  // 如果任务状态是 running，则启用轮询；否则禁用
   const {
     data: task,
     error,
     isLoading,
   } = useSWR<TaskRecord>(
     taskId ? `/api/task/${taskId}` : null,
-    taskId ? () => api.getTaskDetail(taskId) : null
+    taskId ? () => api.getTaskDetail(taskId) : null,
+    {
+      refreshInterval: (latestData) => {
+        return latestData?.status === 'running' ? 2000 : 0;
+      },
+    }
   );
+
+  // 如果任务状态是 running，则启用轮询；否则禁用
+  const taskIsRunning = task?.status === 'running';
 
   // 使用实时轮询获取文件列表
   // 如果任务状态是 running，则启用轮询；否则禁用
-  const taskIsRunning = task?.status === 'running';
   const { data: taskFiles, isLoading: filesLoading } = useSWR<TaskFileList>(
     taskId ? `/api/task/${taskId}/files` : null,
     taskId ? () => api.getTaskFiles(taskId) : null,
