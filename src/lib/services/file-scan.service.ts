@@ -97,6 +97,7 @@ export class FileScanService {
               if (depth < maxDepth) {
                 walk(fullPath, relPath, depth + 1);
               }
+              // 目录不添加到结果
             } else if (stat.isFile()) {
               result.push(relPath);
             }
