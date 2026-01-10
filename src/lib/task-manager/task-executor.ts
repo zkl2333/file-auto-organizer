@@ -10,6 +10,8 @@ import { FileScanService } from '@/lib/services/file-scan.service';
 import { AIClassificationService } from '@/lib/services/ai-classification.service';
 import { FileInfoService } from '@/lib/services/file-info.service';
 import { FileMoveService } from '@/lib/services/file-move.service';
+import { AIProcessorService } from '@/lib/services/ai-processor.service';
+import { FileMoveProcessorService } from '@/lib/services/file-move-processor.service';
 import path from 'node:path';
 import fs from 'node:fs';
 
@@ -27,6 +29,8 @@ export class TaskExecutor {
   private aiClassificationService: AIClassificationService;
   private fileInfoService: FileInfoService;
   private fileMoveService: FileMoveService;
+  private aiProcessorService: AIProcessorService;
+  private fileMoveProcessorService: FileMoveProcessorService;
   private currentKnownDirs: string[] = [];
 
   constructor(task: Task) {
@@ -35,6 +39,13 @@ export class TaskExecutor {
     this.aiClassificationService = new AIClassificationService();
     this.fileInfoService = FileInfoService.getInstance();
     this.fileMoveService = new FileMoveService();
+    this.aiProcessorService = new AIProcessorService(
+      this.aiClassificationService,
+      this.fileMoveService,
+      // @ts-ignore - FileStatusService will be injected separately
+      null
+    );
+    this.fileMoveProcessorService = new FileMoveProcessorService(this.fileMoveService);
   }
 
   /**
@@ -140,11 +151,8 @@ export class TaskExecutor {
     // 第三步：移动相似度匹配的文件
     await this.moveSimilarityMatchedFiles(similarityResults);
 
-    // 第四步：执行 AI 分类
-    const { aiResults, tokensUsed } = await this.performAIClassification(needAIClassification);
-
-    // 第五步：移动 AI 分类的文件
-    await this.moveAIClassifiedFiles(aiResults);
+    // 第四步：执行 AI 分类和移动（使用 AIProcessorService）
+    const aiResult = await this.performAIClassification(needAIClassification);
 
     // 更新最终统计
     const fileTypes: Record<string, number> = {};
@@ -154,12 +162,12 @@ export class TaskExecutor {
 
     this.task.updateStats({
       similarityMatched: similarityResults.length,
-      aiClassified: aiResults.length,
+      aiClassified: aiResult.successfulMoves,
       totalProcessed: this.task.files.length,
-      tokensUsed,
+      tokensUsed: aiResult.totalTokensUsed,
       aiCalls:
-        aiResults.length > 0
-          ? Math.ceil(aiResults.length / (this.fullConfig.ai.batch_size || 10))
+        aiResult.successfulMoves > 0
+          ? Math.ceil(aiResult.successfulMoves / (this.fullConfig.ai.batch_size || 10))
           : 0,
       fileTypes,
     });
@@ -278,7 +286,7 @@ export class TaskExecutor {
   }
 
   /**
-   * 移动相似度匹配的文件
+   * 移动相似度匹配的文件 - 使用 FileMoveProcessorService
    */
   private async moveSimilarityMatchedFiles(
     similarityResults: Array<{
@@ -295,50 +303,17 @@ export class TaskExecutor {
       '开始移动相似度匹配的文件'
     );
 
-    for (const result of similarityResults) {
-      const file = this.task.files.find((f) => f.name === result.fileName);
-      if (!file) continue;
+    // 使用 FileMoveProcessorService 创建移动信息
+    const moveInfos = FileMoveProcessorService.createMoveInfosFromSimilarity(similarityResults);
 
-      const targetPath = path.join(this.config.rootDir, result.bestDir, result.fileName);
-
-      if (this.task.dryRun) {
-        // 预演模式，不实际移动
-        file.status = 'success';
-        file.processStage = 'complete';
-        file.progress = 100;
-        file.targetPath = targetPath;
-      } else {
-        // 实际移动文件
-        file.status = 'moving';
-        file.processStage = 'move';
-        file.progress = 75;
-
-        const moveResult = await this.fileMoveService.moveFile(result.filePath, targetPath);
-
-        if (moveResult.success) {
-          file.status = 'success';
-          file.targetPath = moveResult.finalPath;
-          file.progress = 100;
-          file.processStage = 'complete';
-
-          // 更新已知目录列表
-          const targetDir = path.dirname(moveResult.finalPath);
-          this.updateKnownDirectories(targetDir);
-        } else {
-          file.status = 'failed';
-          file.progress = 100;
-          file.processStage = 'complete';
-          logger.error(
-            {
-              taskId: this.task.taskId,
-              fileName: result.fileName,
-              error: moveResult.error,
-            },
-            '文件移动失败'
-          );
-        }
-      }
-    }
+    // 批量移动文件
+    await this.fileMoveProcessorService.batchMoveFiles(
+      this.task.taskId,
+      this.task.files,
+      moveInfos,
+      this.task.dryRun,
+      (directoryPath) => this.updateKnownDirectories(directoryPath)
+    );
 
     logger.info(
       { taskId: this.task.taskId, files: similarityResults.length },
@@ -347,25 +322,20 @@ export class TaskExecutor {
   }
 
   /**
-   * 执行 AI 分类
+   * 执行 AI 分类和移动 - 使用 AIProcessorService
    */
   private async performAIClassification(filePaths: string[]): Promise<{
-    aiResults: Array<{
-      fileName: string;
-      filePath: string;
-      targetDir: string;
-      reasoning?: string;
-    }>;
-    tokensUsed: number;
+    successfulMoves: number;
+    totalTokensUsed: number;
   }> {
     if (filePaths.length === 0) {
-      return { aiResults: [], tokensUsed: 0 };
+      return { successfulMoves: 0, totalTokensUsed: 0 };
     }
 
     logger.info({ taskId: this.task.taskId, files: filePaths.length }, '开始 AI 分类');
 
-    // 准备文件描述
-    const filesWithDescription: Array<{ fileName: string; description: string; filePath: string }> =
+    // 准备 AI 分类文件信息
+    const filesWithDescription: Array<{ fileName: string; filePath: string; description: string }> =
       [];
     for (const filePath of filePaths) {
       const fileName = path.basename(filePath);
@@ -378,156 +348,31 @@ export class TaskExecutor {
       file.progress = 50;
 
       const description = await this.fileInfoService.getFileDescription(filePath);
-      filesWithDescription.push({ fileName, description, filePath });
+      filesWithDescription.push({ fileName, filePath, description });
     }
 
-    // 批量调用 AI 分类
-    try {
-      const batchSize = this.fullConfig.ai.batch_size || 10;
-      const batches = FileUtils.chunkArray(filesWithDescription, batchSize);
+    // 使用 AIProcessorService 处理 AI 分类和移动
+    const result = await this.aiProcessorService.processAIClassificationAndMove(
+      this.task.taskId,
+      this.task.files,
+      filesWithDescription,
+      this.currentKnownDirs,
+      this.task.dryRun
+    );
 
-      const allClassifications: Array<{ fileName: string; path: string; reasoning?: string }> = [];
-      let totalTokensUsed = 0;
+    logger.info(
+      {
+        taskId: this.task.taskId,
+        successfulMoves: result.successfulMoves,
+        totalTokens: result.totalTokensUsed,
+      },
+      'AI 分类和移动完成'
+    );
 
-      for (let i = 0; i < batches.length; i++) {
-        const batch = batches[i];
-        logger.info(
-          { taskId: this.task.taskId, batchIndex: i + 1, totalBatches: batches.length },
-          `处理 AI 分类批次 ${i + 1}/${batches.length}`
-        );
-
-        const { classifications, tokensUsed } = await this.aiClassificationService.classifyBatch(
-          batch.map((f) => ({ fileName: f.fileName, description: f.description })),
-          this.currentKnownDirs
-        );
-
-        allClassifications.push(...classifications);
-        totalTokensUsed += tokensUsed;
-
-        // 批次间延迟
-        if (i < batches.length - 1) {
-          await new Promise((resolve) => setTimeout(resolve, 1000));
-        }
-      }
-
-      // 更新文件状态
-      const aiResults: Array<{
-        fileName: string;
-        filePath: string;
-        targetDir: string;
-        reasoning?: string;
-      }> = [];
-
-      for (const classification of allClassifications) {
-        const fileWithDesc = filesWithDescription.find(
-          (f) => f.fileName === classification.fileName
-        );
-        if (!fileWithDesc) continue;
-
-        const file = this.task.files.find((f) => f.name === classification.fileName);
-        if (!file) continue;
-
-        file.status = 'ai_classified';
-        file.progress = 60;
-        file.reasoning = classification.reasoning;
-
-        aiResults.push({
-          fileName: classification.fileName,
-          filePath: fileWithDesc.filePath,
-          targetDir: classification.path,
-          reasoning: classification.reasoning,
-        });
-      }
-
-      logger.info(
-        {
-          taskId: this.task.taskId,
-          classified: aiResults.length,
-          tokensUsed: totalTokensUsed,
-        },
-        'AI 分类完成'
-      );
-
-      return { aiResults, tokensUsed: totalTokensUsed };
-    } catch (error) {
-      logger.error({ taskId: this.task.taskId, error }, 'AI 分类失败');
-
-      // 标记所有文件为失败
-      for (const filePath of filePaths) {
-        const fileName = path.basename(filePath);
-        const file = this.task.files.find((f) => f.name === fileName);
-        if (file) {
-          file.status = 'failed';
-          file.progress = 100;
-          file.processStage = 'complete';
-        }
-      }
-
-      return { aiResults: [], tokensUsed: 0 };
-    }
-  }
-
-  /**
-   * 移动 AI 分类的文件
-   */
-  private async moveAIClassifiedFiles(
-    aiResults: Array<{
-      fileName: string;
-      filePath: string;
-      targetDir: string;
-      reasoning?: string;
-    }>
-  ): Promise<void> {
-    if (aiResults.length === 0) return;
-
-    logger.info({ taskId: this.task.taskId, files: aiResults.length }, '开始移动 AI 分类的文件');
-
-    for (const result of aiResults) {
-      const file = this.task.files.find((f) => f.name === result.fileName);
-      if (!file) continue;
-
-      const targetPath = path.join(this.config.rootDir, result.targetDir, result.fileName);
-      file.targetPath = targetPath;
-
-      if (this.task.dryRun) {
-        // 预演模式，不实际移动
-        file.status = 'success';
-        file.processStage = 'complete';
-        file.progress = 100;
-      } else {
-        // 实际移动文件
-        file.status = 'moving';
-        file.processStage = 'move';
-        file.progress = 75;
-
-        const moveResult = await this.fileMoveService.moveFile(result.filePath, targetPath);
-
-        if (moveResult.success) {
-          file.status = 'success';
-          file.targetPath = moveResult.finalPath;
-          file.progress = 100;
-          file.processStage = 'complete';
-
-          // 更新已知目录列表
-          const targetDir = path.dirname(moveResult.finalPath);
-          this.updateKnownDirectories(targetDir);
-        } else {
-          file.status = 'failed';
-          file.progress = 100;
-          file.processStage = 'complete';
-          logger.error(
-            {
-              taskId: this.task.taskId,
-              fileName: result.fileName,
-              error: moveResult.error,
-            },
-            '文件移动失败'
-          );
-        }
-      }
-    }
-
-    logger.info({ taskId: this.task.taskId, files: aiResults.length }, 'AI 分类文件移动完成');
+    return {
+      successfulMoves: result.successfulMoves,
+      totalTokensUsed: result.totalTokensUsed,
+    };
   }
 
   /**

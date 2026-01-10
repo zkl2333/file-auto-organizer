@@ -3,6 +3,9 @@ import fs from 'node:fs';
 import { logger } from '@/lib/logger';
 import type { ProcessedFile } from '@/lib/api-client';
 
+// 重新导出类型供其他模块使用
+export type { ProcessedFile };
+
 /**
  * 文件状态管理服务 - Next.js 适配版本
  */
@@ -99,6 +102,24 @@ export class FileStatusService {
 
     // 保存到磁盘
     await this.saveFileList(taskId, processedFiles);
+  }
+
+  /**
+   * 批量更新多个文件到指定状态
+   */
+  async batchUpdateFilesToStatus(
+    taskId: string,
+    processedFiles: ProcessedFile[],
+    fileNames: string[],
+    status: ProcessedFile['status'],
+    processStage: ProcessedFile['processStage'],
+    progress: number
+  ): Promise<void> {
+    const updates = fileNames.map((fileName) => ({
+      fileName,
+      updates: { status, processStage, progress } as Partial<ProcessedFile>,
+    }));
+    await this.batchUpdateAndSaveFileStatus(taskId, processedFiles, updates);
   }
 
   /**
