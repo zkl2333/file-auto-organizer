@@ -7,10 +7,11 @@ import fs from 'fs';
 
 // Mock logger
 vi.mock('@/lib/logger', () => ({
-  systemLogger: {
+  logger: {
     info: vi.fn(),
     error: vi.fn(),
     warn: vi.fn(),
+    debug: vi.fn(),
   },
 }));
 
