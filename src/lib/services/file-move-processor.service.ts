@@ -2,6 +2,7 @@ import path from 'node:path';
 import { logger } from '@/lib/logger';
 import { getConfig } from '@/lib/config';
 import { FileMoveService } from './file-move.service';
+import { FileValidatorService } from './file-processing/file-validator.service';
 import type { ProcessedFile } from '@/lib/api-client';
 
 const config = getConfig();
@@ -30,7 +31,11 @@ export interface FileMoveResult {
  * 文件移动处理服务 - 统一处理文件移动逻辑
  */
 export class FileMoveProcessorService {
-  constructor(private fileMoveService: FileMoveService) {}
+  private validator: FileValidatorService;
+
+  constructor(private fileMoveService: FileMoveService) {
+    this.validator = new FileValidatorService();
+  }
 
   /**
    * 批量移动文件 - 统一入口
@@ -119,6 +124,12 @@ export class FileMoveProcessorService {
       throw new Error(`找不到文件记录: ${moveInfo.fileName}`);
     }
 
+    // 验证目标目录路径是否在允许范围内（防止路径遍历）
+    const targetPathValidation = this.validator.validateSafePath(finalTargetPath, ROOT_DIR);
+    if (!targetPathValidation.valid) {
+      throw new Error(`目标路径验证失败: ${targetPathValidation.error}`);
+    }
+
     // 更新状态为"移动中"
     file.status = 'moving';
     file.processStage = 'move';
@@ -128,7 +139,7 @@ export class FileMoveProcessorService {
       file.reasoning = moveInfo.reasoning;
     }
 
-    // 执行移动
+    // 执行移动（FileMoveService 内部已有源文件和目录验证）
     const moveResult = await this.fileMoveService.moveFile(moveInfo.sourcePath, finalTargetPath);
     if (!moveResult.success) {
       throw new Error(moveResult.error || '移动文件失败');
