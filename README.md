@@ -65,7 +65,42 @@
 
 ## 📁 配置说明
 
-主要配置项 `config.yaml`:
+### 配置文件位置
+
+配置文件和数据目录使用跨平台路径，首次运行时自动创建。
+
+**基础配置目录（config_dir）根据操作系统和用户名变化：**
+
+- **Linux**: `~/.config`（例如：`/home/Alice/.config`）
+- **Windows**: `%APPDATA%`（例如：`C:\Users\Alice\AppData\Roaming`）
+- **macOS**: `~/Library/Application Support`（例如：`/Users/Alice/Library/Application Support`）
+
+**应用配置和数据目录：**
+
+- **Windows**:
+  - 配置文件: `%APPDATA%\file-auto-organizer\config.yaml`
+  - 日志目录: `%LOCALAPPDATA%\file-auto-organizer\`
+
+- **macOS**:
+  - 配置文件: `~/Library/Application Support/file-auto-organizer/config.yaml`
+  - 日志目录: `~/Library/Application Support/file-auto-organizer/`
+
+- **Linux**:
+  - 配置文件: `~/.config/file-auto-organizer/config.yaml`
+  - 日志目录: `~/.local/share/file-auto-organizer/`
+
+- **Docker 环境**:
+  - 基础配置目录: `$HOME/.config`（根据 `$HOME` 拼接，例如：`/app/.config`）
+  - 配置文件: `$HOME/.config/config.yaml`
+  - 日志目录: `$HOME/.config/logs/`
+  - 通过 docker-compose.yaml 挂载到宿主机 `./.config` 目录
+  - 注意：Docker 环境中去掉了应用名称层，路径更简洁
+
+支持通过环境变量 `CONFIG_PATH` 覆盖配置文件路径。
+
+### 主要配置项
+
+首次运行会自动创建默认配置文件 `config.yaml`:
 
 ```yaml
 openai:
@@ -74,8 +109,8 @@ openai:
   base_url: 'https://api.openai.com/v1' # 可选：自定义 API 端点
 
 directories:
-  root_dir: '/data/分类库' # 分类后的文件存放位置
-  incoming_dir: '/data/待分类' # 需要整理的文件目录
+  root_dir: './分类库' # 分类后的文件存放位置
+  incoming_dir: './待分类' # 需要整理的文件目录
 
 cron:
   enabled: true # 是否启用定时任务
@@ -83,7 +118,7 @@ cron:
 
 logging:
   level: 'info' # 日志级别
-  dir: './logs' # 日志目录
+  dir: '' # 日志目录（默认使用跨平台数据目录）
 ```
 
 ## 🎯 工作流程
@@ -127,6 +162,9 @@ logging:
 │   ├── components/         # React 组件
 │   ├── hooks/             # 自定义 Hooks
 │   ├── lib/               # 工具库
+│   │   ├── config.ts      # 配置加载器
+│   │   ├── paths.ts       # 跨平台路径管理
+│   │   └── logger.ts      # 日志系统
 │   └── types/             # TypeScript 类型
 ├── public/                # 静态资源
 ├── logs/                  # 日志目录
@@ -152,10 +190,18 @@ docker build -t file-auto-organizer .
 docker run -d \
   -p 8080:8080 \
   -v ~/Downloads:/data:rw \
-  -v ./logs:/app/logs:rw \
-  -v ./config.yaml:/app/config.yaml:ro \
+  -v ./.config:/app/.config:rw \
+  -e HOME=/app \
   file-auto-organizer
 ```
+
+或使用 Docker Compose：
+
+```bash
+docker-compose up -d
+```
+
+配置和数据会自动挂载到宿主机 `./.config` 目录，包含 `config.yaml` 和日志文件。
 
 #### 环境变量
 

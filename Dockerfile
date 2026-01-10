@@ -1,9 +1,10 @@
 FROM node:20-alpine
 
-# 设置时区环境变量
-ENV TZ=Asia/Shanghai
-ENV NODE_ENV=production
-ENV PORT=3000
+# 设置环境变量
+ENV TZ=Asia/Shanghai \
+    NODE_ENV=production \
+    PORT=3000 \
+    HOME=/app
 
 # 安装时区数据和Perl（exiftool-vendored依赖）
 RUN apk add --no-cache tzdata perl
@@ -24,6 +25,9 @@ RUN npm run build
 
 # 暴露端口
 EXPOSE 3000
+
+# 定义数据卷
+VOLUME [ "/app/.config" ]
 
 # 启动命令
 CMD ["npm", "start"]

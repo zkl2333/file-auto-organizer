@@ -1,4 +1,5 @@
 import { TaskConfig } from '@/types';
+import { CONFIG_DIR, DATA_DIR, ensureConfigDir, ensureDataDir } from './paths';
 
 // 配置接口定义
 interface AppConfig {
@@ -51,7 +52,7 @@ const defaultConfig: AppConfig = {
   },
   logging: {
     level: 'info',
-    dir: './logs',
+    dir: DATA_DIR(),
   },
   scan: {
     max_depth: 10,
@@ -74,12 +75,16 @@ let currentConfig: AppConfig = defaultConfig;
  */
 export async function loadConfig(configPath?: string): Promise<AppConfig> {
   try {
-    const path = configPath || process.env.CONFIG_PATH || './config.yaml';
-
     // 在浏览器环境中，不允许直接调用 loadConfig，应通过 API 获取配置
     if (typeof window !== 'undefined') {
       throw new Error('loadConfig 不能在浏览器环境中调用，请使用 API 获取配置');
     }
+
+    // 确保配置目录和数据目录存在
+    await ensureConfigDir();
+    await ensureDataDir();
+
+    const path = configPath || process.env.CONFIG_PATH || CONFIG_DIR() + '/config.yaml';
 
     // 在服务端环境中，尝试读取配置文件
     const fs = await import('fs/promises');

@@ -8,11 +8,6 @@ services:
     volumes:
       # 宿主机下载目录挂载到容器内 /data
       - ~/Downloads:/data:rw
-      # 日志输出目录
-      - ./logs:/app/logs:rw
-      # 配置文件挂载
-      - ./config.yaml:/app/config.yaml:ro
+      # 配置和数据目录（包含 config.yaml 和 logs）
+      - ./.config:/app/.config:rw
     working_dir: /app
-    environment:
-      - NODE_ENV=production
-      - PORT=3000
