@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { StatsService, TaskStatsRecord } from '@/lib/services/stats.service';
+import { StatsService, TaskStatsRecord } from './stats.service';
 import { TEST_TEMP_DIR } from '../utils/test-utils';
 import path from 'path';
 import fs from 'fs';

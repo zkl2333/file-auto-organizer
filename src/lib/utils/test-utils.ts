@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { TEST_TEMP_DIR } from '../setup';
+import { TEST_TEMP_DIR } from '../../../tests/setup';
 
 // 重新导出 TEST_TEMP_DIR 以供其他模块使用
 export { TEST_TEMP_DIR };

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { FileStatusService } from '@/lib/services/file-status.service';
+import { FileStatusService } from './file-status.service';
 import { cleanupTestDir, TEST_TEMP_DIR } from '../utils/test-utils';
-import type { ProcessedFile } from '@/lib/api-client';
+import type { ProcessedFile } from '../api-client';
 import path from 'path';
 import fs from 'fs';
 
