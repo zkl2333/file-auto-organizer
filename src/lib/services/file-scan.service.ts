@@ -2,22 +2,42 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { logger } from '@/lib/logger';
 import { getConfig } from '@/lib/config';
+import { FileValidatorService } from './file-processing/file-validator.service';
 
 /**
  * 文件扫描服务
  */
 export class FileScanService {
   private maxDepth: number;
+  private validator: FileValidatorService;
 
   constructor() {
     const config = getConfig();
     this.maxDepth = config.scan.max_depth;
+    this.validator = new FileValidatorService();
+  }
+
+  /**
+   * 验证目录路径是否安全
+   */
+  private validateDirectoryPath(dirPath: string): boolean {
+    const validation = this.validator.validateSafePath(dirPath, dirPath);
+    if (!validation.valid) {
+      logger.warn({ dirPath, error: validation.error }, '目录路径验证失败，跳过此目录');
+      return false;
+    }
+    return true;
   }
 
   /**
    * 扫描目录树，返回相对路径的目录列表
    */
   scanDirs(rootDir: string): string[] {
+    // 验证根目录路径安全性
+    if (!this.validateDirectoryPath(rootDir)) {
+      return [];
+    }
+
     const result: string[] = [];
     const maxDepth = this.maxDepth;
 
@@ -57,6 +77,11 @@ export class FileScanService {
    * 递归扫描所有文件，返回相对 rootDir 的路径
    */
   scanFiles(rootDir: string): string[] {
+    // 验证根目录路径安全性
+    if (!this.validateDirectoryPath(rootDir)) {
+      return [];
+    }
+
     const result: string[] = [];
     const maxDepth = this.maxDepth;
 
@@ -97,6 +122,11 @@ export class FileScanService {
    * 获取待分类目录中的文件列表
    */
   getIncomingFiles(incomingDir: string): string[] {
+    // 验证目录路径安全性
+    if (!this.validateDirectoryPath(incomingDir)) {
+      return [];
+    }
+
     if (!fs.existsSync(incomingDir)) {
       logger.warn({ incomingDir }, '待分类目录不存在');
       return [];
