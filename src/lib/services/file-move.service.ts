@@ -1,11 +1,18 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { logger } from '@/lib/logger';
+import { FileValidatorService } from './file-processing/file-validator.service';
 
 /**
  * 文件移动服务
  */
 export class FileMoveService {
+  private validator: FileValidatorService;
+
+  constructor() {
+    this.validator = new FileValidatorService();
+  }
+
   /**
    * 确保目标目录存在
    */
@@ -50,8 +57,36 @@ export class FileMoveService {
     options: { overwrite?: boolean } = {}
   ): Promise<{ success: boolean; finalPath: string; error?: string }> {
     try {
-      // 确保目标目录存在
+      // 验证源文件
+      const sourceValidation = this.validator.validateFile(sourcePath);
+      if (!sourceValidation.valid) {
+        logger.warn(
+          { module: 'file-move', sourcePath, error: sourceValidation.error },
+          '源文件验证失败，跳过移动'
+        );
+        return {
+          success: false,
+          finalPath: targetPath,
+          error: sourceValidation.error,
+        };
+      }
+
+      // 验证目标目录路径和写入权限
       const targetDir = path.dirname(targetPath);
+      const targetDirValidation = this.validator.validateDirectoryWritePermission(targetDir);
+      if (!targetDirValidation.valid) {
+        logger.warn(
+          { module: 'file-move', targetDir, error: targetDirValidation.error },
+          '目标目录验证失败，跳过移动'
+        );
+        return {
+          success: false,
+          finalPath: targetPath,
+          error: targetDirValidation.error,
+        };
+      }
+
+      // 确保目标目录存在
       this.ensureDir(targetDir);
 
       // 如果不允许覆盖，生成唯一文件名
@@ -99,8 +134,34 @@ export class FileMoveService {
     targetPath: string
   ): Promise<{ success: boolean; error?: string }> {
     try {
-      // 确保目标目录存在
+      // 验证源文件
+      const sourceValidation = this.validator.validateFile(sourcePath);
+      if (!sourceValidation.valid) {
+        logger.warn(
+          { module: 'file-move', sourcePath, error: sourceValidation.error },
+          '源文件验证失败，跳过复制'
+        );
+        return {
+          success: false,
+          error: sourceValidation.error,
+        };
+      }
+
+      // 验证目标目录路径和写入权限
       const targetDir = path.dirname(targetPath);
+      const targetDirValidation = this.validator.validateDirectoryWritePermission(targetDir);
+      if (!targetDirValidation.valid) {
+        logger.warn(
+          { module: 'file-move', targetDir, error: targetDirValidation.error },
+          '目标目录验证失败，跳过复制'
+        );
+        return {
+          success: false,
+          error: targetDirValidation.error,
+        };
+      }
+
+      // 确保目标目录存在
       this.ensureDir(targetDir);
 
       // 复制文件

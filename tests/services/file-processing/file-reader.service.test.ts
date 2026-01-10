@@ -1,10 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
-import {
-  FileReaderService,
-  TEXT_FILE_CONFIG,
-} from '@/lib/services/file-processing/file-reader.service';
+import { FileReaderService } from '@/lib/services/file-processing/file-reader.service';
 
 describe('FileReaderService', () => {
   let service: FileReaderService;
