@@ -1,5 +1,5 @@
 import { logger } from '@/lib/logger';
-import { FileReaderService, FileMetadataService } from './file-processing';
+import { FileReaderService, FileMetadataService, FileValidatorService } from './file-processing';
 
 /**
  * 文件信息服务 - 使用专业的子服务
@@ -8,10 +8,12 @@ export class FileInfoService {
   private static instance: FileInfoService | null = null;
   private fileReader: FileReaderService;
   private fileMetadata: FileMetadataService;
+  private validator: FileValidatorService;
 
   private constructor() {
     this.fileReader = new FileReaderService();
     this.fileMetadata = new FileMetadataService(this.fileReader);
+    this.validator = new FileValidatorService();
   }
 
   /**
@@ -28,6 +30,16 @@ export class FileInfoService {
    * 获取文件描述信息
    */
   async getFileDescription(filePath: string): Promise<string> {
+    // 先验证文件是否适合处理
+    const validation = this.validator.validateFileForProcessing(filePath);
+    if (!validation.valid) {
+      logger.warn(
+        { module: 'file-info', filePath, reason: validation.reason },
+        '文件验证失败，跳过提取描述'
+      );
+      return '';
+    }
+
     try {
       return await this.fileMetadata.getFileDescription(filePath);
     } catch (error) {
