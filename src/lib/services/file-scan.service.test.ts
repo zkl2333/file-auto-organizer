@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi, beforeAll, afterAll } from 'vitest';
 import { FileScanService } from '@/lib/services/file-scan.service';
-import { cleanupTestDirs, TEST_TEMP_DIR } from '../setup';
+import { cleanupTestDirs, TEST_TEMP_DIR } from '../../../tests/setup';
 import path from 'path';
 import fs from 'fs';
 
