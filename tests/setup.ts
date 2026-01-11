@@ -35,7 +35,7 @@ function createTestDirs() {
 
 // Mock fs
 vi.mock('node:fs');
-export const mockedFs = vi.mocked(import('node:fs'));
+export const mockedFs = vi.mocked(require('node:fs'));
 
 // Mock config (避免 await import 导致的问题)
 export const mockedGetConfig = vi.fn(() => ({
