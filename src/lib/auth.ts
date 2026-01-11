@@ -2,21 +2,30 @@ import { SignJWT, jwtVerify } from 'jose';
 import bcrypt from 'bcryptjs';
 import { NextRequest, NextResponse } from 'next/server';
 import { logger } from './logger';
+import { getConfig } from './config';
 import type { JWTPayload as CustomJWTPayload } from '@/types/auth';
 
-const JWT_SECRET = process.env.JWT_SECRET;
-const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET;
-
-if (!JWT_SECRET) {
-  throw new Error('JWT_SECRET environment variable is not defined');
+/**
+ * 获取 JWT 密钥
+ */
+function getAccessTokenSecret(): Uint8Array {
+  const secret = getConfig().auth.jwt_secret;
+  if (!secret) {
+    throw new Error('JWT_SECRET is not configured in config.yaml');
+  }
+  return new TextEncoder().encode(secret);
 }
 
-if (!JWT_REFRESH_SECRET) {
-  throw new Error('JWT_REFRESH_SECRET environment variable is not defined');
+/**
+ * 获取 Refresh Token 密钥
+ */
+function getRefreshTokenSecret(): Uint8Array {
+  const secret = getConfig().auth.jwt_refresh_secret;
+  if (!secret) {
+    throw new Error('JWT_REFRESH_SECRET is not configured in config.yaml');
+  }
+  return new TextEncoder().encode(secret);
 }
-
-const accessTokenSecret = new TextEncoder().encode(JWT_SECRET);
-const refreshTokenSecret = new TextEncoder().encode(JWT_REFRESH_SECRET);
 
 /**
  * 生成 Access Token
@@ -37,7 +46,7 @@ export async function generateAccessToken(
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setExpirationTime(expiryTime)
-    .sign(accessTokenSecret);
+    .sign(getAccessTokenSecret());
 }
 
 /**
@@ -59,7 +68,7 @@ export async function generateRefreshToken(
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setExpirationTime(expiryTime)
-    .sign(refreshTokenSecret);
+    .sign(getRefreshTokenSecret());
 }
 
 /**
@@ -67,7 +76,7 @@ export async function generateRefreshToken(
  */
 export async function verifyAccessToken(token: string): Promise<CustomJWTPayload | null> {
   try {
-    const { payload } = await jwtVerify(token, accessTokenSecret);
+    const { payload } = await jwtVerify(token, getAccessTokenSecret());
     if (payload.type !== 'access') {
       return null;
     }
@@ -83,7 +92,7 @@ export async function verifyAccessToken(token: string): Promise<CustomJWTPayload
  */
 export async function verifyRefreshToken(token: string): Promise<CustomJWTPayload | null> {
   try {
-    const { payload } = await jwtVerify(token, refreshTokenSecret);
+    const { payload } = await jwtVerify(token, getRefreshTokenSecret());
     if (payload.type !== 'refresh') {
       return null;
     }
@@ -98,8 +107,9 @@ export async function verifyRefreshToken(token: string): Promise<CustomJWTPayloa
  * 验证管理员凭证
  */
 export async function verifyAdminCredentials(username: string, password: string): Promise<boolean> {
-  const adminUsername = process.env.ADMIN_USERNAME || 'admin';
-  const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
+  const config = getConfig();
+  const adminUsername = config.auth.admin_username;
+  const adminPassword = config.auth.admin_password;
 
   // 在生产环境中，密码应该是 bcrypt hash
   // 这里为了简化开发，直接比较明文密码

@@ -34,3 +34,9 @@ ai:
 file_operations:
   max_retries: 3                       # 文件操作最大重试次数
   retry_delay_base: 1000               # 重试延迟基数（毫秒）
+
+auth:
+  jwt_secret: "your-jwt-secret-key-here-change-me"  # JWT 签名密钥（生产环境请务必修改）
+  jwt_refresh_secret: "your-refresh-secret-key-here-change-me"  # 刷新令牌密钥（生产环境请务必修改）
+  admin_username: "admin"              # 管理员用户名
+  admin_password: "change-this-password"  # 管理员密码（生产环境请务必修改）

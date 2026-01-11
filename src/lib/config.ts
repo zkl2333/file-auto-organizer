@@ -22,6 +22,12 @@ interface AppConfig {
     level: string;
     dir: string;
   };
+  auth: {
+    jwt_secret: string;
+    jwt_refresh_secret: string;
+    admin_username: string;
+    admin_password: string;
+  };
   timezone: string;
   scan: {
     max_depth: number;
@@ -55,6 +61,12 @@ const defaultConfig: AppConfig = {
   logging: {
     level: 'info',
     dir: DATA_DIR(),
+  },
+  auth: {
+    jwt_secret: '',
+    jwt_refresh_secret: '',
+    admin_username: 'admin',
+    admin_password: 'admin123',
   },
   scan: {
     max_depth: 10,
@@ -141,6 +153,10 @@ export async function loadConfig(configPath?: string): Promise<AppConfig> {
             ...defaultConfig.logging,
             ...userConfig.logging,
           },
+          auth: {
+            ...defaultConfig.auth,
+            ...userConfig.auth,
+          },
           scan: {
             ...defaultConfig.scan,
             ...userConfig.scan,
@@ -220,6 +236,10 @@ export function updateConfig(updates: Partial<AppConfig>): void {
       ...currentConfig.logging,
       ...updates.logging,
     },
+    auth: {
+      ...currentConfig.auth,
+      ...updates.auth,
+    },
     scan: {
       ...currentConfig.scan,
       ...updates.scan,
@@ -269,6 +289,12 @@ export function applyEnvOverrides(): void {
     logging: {
       level: process.env.LOG_LEVEL || currentConfig.logging.level,
       dir: process.env.LOG_DIR || currentConfig.logging.dir,
+    },
+    auth: {
+      jwt_secret: process.env.JWT_SECRET || currentConfig.auth.jwt_secret,
+      jwt_refresh_secret: process.env.JWT_REFRESH_SECRET || currentConfig.auth.jwt_refresh_secret,
+      admin_username: process.env.ADMIN_USERNAME || currentConfig.auth.admin_username,
+      admin_password: process.env.ADMIN_PASSWORD || currentConfig.auth.admin_password,
     },
     scan: {
       similarity_threshold: parseFloat(
