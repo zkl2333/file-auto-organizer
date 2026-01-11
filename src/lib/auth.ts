@@ -29,13 +29,16 @@ function getRefreshTokenSecret(): Uint8Array {
 
 /**
  * 生成 Access Token
+ * 安全优化：缩短有效期以减少被盗风险
+ * - 记住我: 7天 (用户可以在 Refresh Token 有效期内自动刷新)
+ * - 不记住我: 1小时 (更安全，公共设备)
  */
 export async function generateAccessToken(
   userId: string,
   username: string,
   rememberMe: boolean = false
 ): Promise<string> {
-  const expiryTime = rememberMe ? '30d' : '24h';
+  const expiryTime = rememberMe ? '7d' : '1h';
 
   return await new SignJWT({
     sub: userId,
@@ -51,6 +54,9 @@ export async function generateAccessToken(
 
 /**
  * 生成 Refresh Token
+ * 较长有效期用于自动续期，但通过 HttpOnly Cookie 存储
+ * - 记住我: 90天
+ * - 不记住我: 7天
  */
 export async function generateRefreshToken(
   userId: string,
@@ -105,23 +111,47 @@ export async function verifyRefreshToken(token: string): Promise<CustomJWTPayloa
 
 /**
  * 验证管理员凭证
+ * 支持明文密码（用于向后兼容）和 bcrypt 哈希密码
  */
 export async function verifyAdminCredentials(username: string, password: string): Promise<boolean> {
   const config = getConfig();
   const adminUsername = config.auth.admin_username;
   const adminPassword = config.auth.admin_password;
 
-  // 在生产环境中，密码应该是 bcrypt hash
-  // 这里为了简化开发，直接比较明文密码
-  // TODO: 在生产环境中使用 bcrypt.compare()
+  // 检查管理员是否已设置（用户名和密码都不为空）
+  if (
+    !adminUsername ||
+    adminUsername.length === 0 ||
+    !adminPassword ||
+    adminPassword.length === 0
+  ) {
+    logger.warn('Admin credentials not configured');
+    return false;
+  }
+
+  // 验证用户名
   if (username !== adminUsername) {
     logger.warn({ username }, 'Invalid admin username');
     return false;
   }
 
-  if (password !== adminPassword) {
-    logger.warn({ username }, 'Invalid admin password');
-    return false;
+  // 检查密码是否为 bcrypt 哈希（bcrypt 哈希以 $2b$ 或 $2a$ 开头）
+  const isBcryptHash = adminPassword.startsWith('$2');
+
+  if (isBcryptHash) {
+    // 使用 bcrypt 比较哈希密码
+    const isValid = await verifyPassword(password, adminPassword);
+    if (!isValid) {
+      logger.warn({ username }, 'Invalid admin password (bcrypt)');
+      return false;
+    }
+  } else {
+    // 向后兼容：直接比较明文密码
+    // 注意：这是一个临时解决方案，用户应该使用 setup 页面更新为 bcrypt 哈希
+    if (password !== adminPassword) {
+      logger.warn({ username }, 'Invalid admin password (plain text)');
+      return false;
+    }
   }
 
   logger.info({ username }, 'Admin credentials verified');

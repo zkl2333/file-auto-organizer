@@ -14,3 +14,13 @@ export interface AuthResponse {
     username: string;
   };
 }
+
+export interface AdminSetupRequest {
+  username: string;
+  password: string;
+}
+
+export interface AdminSetupStatus {
+  initialized: boolean;
+  needsSetup: boolean;
+}

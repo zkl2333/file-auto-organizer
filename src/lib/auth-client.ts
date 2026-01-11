@@ -122,4 +122,57 @@ export const authClient = {
     const fiveMinutes = 5 * 60;
     return payload.exp - now < fiveMinutes;
   },
+
+  /**
+   * 自动刷新 Access Token
+   * 当 Access Token 即将过期时调用 refresh API 获取新 Token
+   */
+  async refreshAccessToken(): Promise<boolean> {
+    try {
+      const response = await fetch('/api/auth/refresh', {
+        method: 'POST',
+        credentials: 'include', // 确保 HttpOnly Cookie 被发送
+      });
+
+      if (!response.ok) {
+        console.error('Token refresh failed:', response.status);
+        // 如果刷新失败，清除本地认证信息
+        this.logout();
+        return false;
+      }
+
+      const data = await response.json();
+      if (data.accessToken) {
+        this.setAccessToken(data.accessToken);
+        console.log('Access token refreshed successfully');
+        return true;
+      }
+
+      return false;
+    } catch (error) {
+      console.error('Error refreshing access token:', error);
+      this.logout();
+      return false;
+    }
+  },
+
+  /**
+   * 检查并在必要时刷新 Token
+   * @returns 是否成功获取了有效的 Access Token
+   */
+  async ensureValidToken(): Promise<boolean> {
+    // 如果没有 Access Token，直接返回 false
+    if (!this.isAuthenticated()) {
+      return false;
+    }
+
+    // 如果 Token 即将过期，尝试刷新
+    if (this.isTokenExpiringSoon()) {
+      console.log('Token expiring soon, refreshing...');
+      return await this.refreshAccessToken();
+    }
+
+    // Token 仍然有效
+    return true;
+  },
 };

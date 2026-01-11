@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { generateAccessToken, generateRefreshToken, verifyAdminCredentials } from '@/lib/auth';
+import { getConfig } from '@/lib/config';
 import type { AuthResponse } from '@/types/auth';
 
 export async function POST(request: NextRequest) {
@@ -11,6 +12,21 @@ export async function POST(request: NextRequest) {
     // 验证输入
     if (!username || !password) {
       return NextResponse.json({ error: '用户名和密码不能为空' }, { status: 400 });
+    }
+
+    // 检查管理员是否已初始化
+    const config = getConfig();
+    const isInitialized =
+      config.auth.admin_username &&
+      config.auth.admin_username.length > 0 &&
+      config.auth.admin_password &&
+      config.auth.admin_password.length > 0;
+
+    if (!isInitialized) {
+      return NextResponse.json(
+        { error: '管理员未初始化，请先访问 /admin/setup 设置管理员账户', needsSetup: true },
+        { status: 403 }
+      );
     }
 
     // 验证管理员凭证

@@ -1,6 +1,7 @@
 import { TaskConfig } from '@/types';
 import { CONFIG_DIR, DATA_DIR, ensureConfigDir, ensureDataDir } from './paths';
 import { logger } from './logger';
+import { generateJwtSecret } from './jwt-secret-generator';
 import path from 'path';
 
 // 配置接口定义
@@ -47,7 +48,7 @@ const defaultConfig: AppConfig = {
   timezone: 'Asia/Shanghai',
   openai: {
     api_key: '',
-    model: 'gpt-4',
+    model: 'gpt-5-nano',
     base_url: '',
   },
   directories: {
@@ -63,10 +64,10 @@ const defaultConfig: AppConfig = {
     dir: DATA_DIR(),
   },
   auth: {
-    jwt_secret: '',
-    jwt_refresh_secret: '',
-    admin_username: 'admin',
-    admin_password: 'admin123',
+    jwt_secret: '', // 将在首次创建配置时自动生成
+    jwt_refresh_secret: '', // 将在首次创建配置时自动生成
+    admin_username: '', // 管理员用户名，首次运行必须设置
+    admin_password: '', // 管理员密码（bcrypt 哈希），首次运行必须设置
   },
   scan: {
     max_depth: 10,
@@ -117,7 +118,18 @@ export async function loadConfig(configPath?: string): Promise<AppConfig> {
     // 如果配置文件不存在，创建默认配置文件
     if (!configExists) {
       logger.debug(`配置文件 ${configFilePath} 不存在，正在创建默认配置文件...`);
-      const defaultYaml = yaml.dump(defaultConfig, {
+
+      // 生成安全的 JWT secrets
+      const configWithSecrets = {
+        ...defaultConfig,
+        auth: {
+          ...defaultConfig.auth,
+          jwt_secret: generateJwtSecret(),
+          jwt_refresh_secret: generateJwtSecret(),
+        },
+      };
+
+      const defaultYaml = yaml.dump(configWithSecrets, {
         indent: 2,
         lineWidth: -1,
         quotingType: '"',
@@ -126,7 +138,7 @@ export async function loadConfig(configPath?: string): Promise<AppConfig> {
       const configWithComment = `# File Auto Organizer 配置文件\n# 首次运行自动生成，请根据需要修改配置\n\n${defaultYaml}`;
       await fs.writeFile(configFilePath, configWithComment, 'utf-8');
       logger.debug(`默认配置文件已创建: ${configFilePath}`);
-      currentConfig = defaultConfig;
+      currentConfig = configWithSecrets;
     } else {
       // 读取并解析配置文件
       try {
@@ -253,6 +265,37 @@ export function updateConfig(updates: Partial<AppConfig>): void {
       ...updates.file_operations,
     },
   };
+}
+
+/**
+ * 保存配置到文件系统
+ */
+export async function saveConfig(): Promise<void> {
+  try {
+    // 在浏览器环境中不允许调用
+    if (typeof window !== 'undefined') {
+      throw new Error('saveConfig 不能在浏览器环境中调用');
+    }
+
+    const fs = await import('fs/promises');
+    const yaml = await import('js-yaml');
+
+    const configFilePath = process.env.CONFIG_PATH || path.join(CONFIG_DIR(), 'config.yaml');
+
+    const yamlContent = yaml.dump(currentConfig, {
+      indent: 2,
+      lineWidth: -1,
+      quotingType: '"',
+      forceQuotes: false,
+    });
+
+    const configWithComment = `# File Auto Organizer 配置文件\n# 请根据需要修改配置\n\n${yamlContent}`;
+    await fs.writeFile(configFilePath, configWithComment, 'utf-8');
+    logger.debug(`配置文件已更新: ${configFilePath}`);
+  } catch (error) {
+    logger.error({ error }, '保存配置失败');
+    throw error;
+  }
 }
 
 /**
