@@ -1,4 +1,4 @@
-import { beforeAll, afterAll } from 'vitest';
+import { beforeAll, afterAll, vi } from 'vitest';
 import fs from 'fs';
 import path from 'path';
 
@@ -17,6 +17,7 @@ function cleanupTestDirs() {
     }
   } catch (error) {
     // 忽略清理错误，可能文件正在使用中（Windows 常见问题）
+    console.error('清理测试目录失败', error);
   }
 }
 
@@ -30,6 +31,38 @@ function createTestDirs() {
   }
 }
 
+// ===== 公共 Mock 定义 =====
+
+// Mock fs
+vi.mock('node:fs');
+export const mockedFs = vi.mocked(import('node:fs'));
+
+// Mock config (避免 await import 导致的问题)
+export const mockedGetConfig = vi.fn(() => ({
+  logging: { level: 'info', dir: TEST_LOGS_DIR },
+  auth: {
+    jwt_secret: 'test-secret',
+    jwt_refresh_secret: 'test-refresh-secret',
+    admin_username: 'admin',
+    admin_password: 'hashed-password',
+  },
+  openai: { api_key: 'test', model: 'test', base_url: 'test' },
+  directories: { root_dir: '', incoming_dir: '' },
+  cron: { enabled: false, schedule: '' },
+  timezone: '',
+  scan: { max_depth: 0, similarity_threshold: 0 },
+  ai: { batch_size: 0 },
+  file_operations: { max_retries: 0, retry_delay_base: 0 },
+}));
+
+// Mock logger
+vi.mock('@/lib/logger');
+export const mockedLogger = vi.mocked(await import('@/lib/logger')).logger;
+
+// Mock getConfig
+vi.mock('@/lib/config');
+export const mockGetConfigModule = await import('@/lib/config');
+
 beforeAll(() => {
   cleanupTestDirs();
   createTestDirs();
@@ -38,13 +71,6 @@ beforeAll(() => {
 afterAll(() => {
   cleanupTestDirs();
 });
-
-// 移除 beforeEach 中的清理逻辑，让每个测试文件自己管理测试目录
-// beforeEach(() => {
-//   // 每个测试前清理临时文件
-//   cleanupTestDirs();
-//   createTestDirs();
-// });
 
 // 导出测试工具函数
 export { TEST_TEMP_DIR, TEST_LOGS_DIR, cleanupTestDirs, createTestDirs };
