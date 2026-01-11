@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { StatsService } from '@/lib/services/stats.service';
+import { verifyAuth } from '@/lib/auth';
 
 // GET /api/usage-stats
 export async function GET(request: NextRequest) {
+  const auth = await verifyAuth(request);
+  if (auth instanceof NextResponse) return auth;
+
   try {
     const { searchParams } = new URL(request.url);
-    void request; // 标记为已使用
     const range = (searchParams.get('range') || 'all') as 'today' | 'week' | 'month' | 'all';
     const includeDryRun = searchParams.get('includeDryRun') === 'true';
 

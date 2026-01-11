@@ -1,12 +1,16 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { loadConfig } from '@/lib/config';
 import { DashboardStats } from '@/types';
+import { verifyAuth } from '@/lib/auth';
 
 /**
  * 获取统计信息 API
  * GET /api/stats
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const auth = await verifyAuth(request);
+  if (auth instanceof NextResponse) return auth;
+
   try {
     const config = await loadConfig();
 

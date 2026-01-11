@@ -1,10 +1,14 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { taskManager } from '@/lib/task-manager';
 import { logger } from '@/lib/logger';
 import { getConfig } from '@/lib/config';
+import { verifyAuth } from '@/lib/auth';
 
 // GET /api/status - 获取任务运行状态
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const auth = await verifyAuth(request);
+  if (auth instanceof NextResponse) return auth;
+
   try {
     // 获取当前配置快照
     const config = getConfig();

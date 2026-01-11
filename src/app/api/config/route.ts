@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { loadConfig, updateConfig, getTaskConfig } from '@/lib/config';
 import { z } from 'zod';
+import { verifyAuth } from '@/lib/auth';
 
 // Configuration validation schema
 const configSchema = z.object({
@@ -40,7 +41,10 @@ const configSchema = z.object({
  * Get configuration API
  * GET /api/config
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const auth = await verifyAuth(request);
+  if (auth instanceof NextResponse) return auth;
+
   try {
     const config = await loadConfig();
     const taskConfig = getTaskConfig();
@@ -69,6 +73,9 @@ export async function GET() {
  * PUT /api/config
  */
 export async function PUT(request: NextRequest) {
+  const auth = await verifyAuth(request);
+  if (auth instanceof NextResponse) return auth;
+
   try {
     const body = await request.json();
 

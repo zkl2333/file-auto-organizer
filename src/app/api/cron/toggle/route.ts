@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { logger } from '@/lib/logger';
 import { getConfig, updateConfig } from '@/lib/config';
+import { verifyAuth } from '@/lib/auth';
 
 // POST /api/cron/toggle - 切换定时任务状态
 export async function POST(request: NextRequest) {
+  const auth = await verifyAuth(request);
+  if (auth instanceof NextResponse) return auth;
+
   try {
     const body = await request.json();
     const { enabled } = body;

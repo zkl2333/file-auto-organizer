@@ -1,10 +1,14 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { logger } from '@/lib/logger';
 import { taskManager } from '@/lib/task-manager';
 import { TaskStatus } from '@/lib/task-manager/types';
+import { verifyAuth } from '@/lib/auth';
 
 // GET /api/task-history - 获取所有任务历史
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const auth = await verifyAuth(request);
+  if (auth instanceof NextResponse) return auth;
+
   try {
     // 直接从 TaskManager 获取所有任务
     const allTasks = taskManager.getAllTasks();

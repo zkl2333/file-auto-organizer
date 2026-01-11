@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { logger } from '@/lib/logger';
 import { taskManager } from '@/lib/task-manager';
+import { verifyAuth } from '@/lib/auth';
 
 // DELETE /api/tasks - 批量删除任务
 export async function DELETE(request: NextRequest) {
+  const auth = await verifyAuth(request);
+  if (auth instanceof NextResponse) return auth;
+
   try {
     const body = await request.json();
     const { taskIds } = body as { taskIds: string[] };

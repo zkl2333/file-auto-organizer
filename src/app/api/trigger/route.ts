@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { taskManager } from '@/lib/task-manager';
 import { logger } from '@/lib/logger';
+import { verifyAuth } from '@/lib/auth';
 
 // POST /api/trigger - 触发任务执行
 export async function POST(request: NextRequest) {
+  const auth = await verifyAuth(request);
+  if (auth instanceof NextResponse) return auth;
+
   try {
     const { searchParams } = new URL(request.url);
     const dryRun = searchParams.get('dryRun') === 'true';

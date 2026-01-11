@@ -2,12 +2,16 @@ import { NextRequest, NextResponse } from 'next/server';
 import { logger } from '@/lib/logger';
 import { taskManager } from '@/lib/task-manager';
 import { TaskStatus } from '@/lib/task-manager/types';
+import { verifyAuth } from '@/lib/auth';
 
 // GET /api/task/[taskId] - 获取指定任务的详细信息
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ taskId: string }> }
 ) {
+  const auth = await verifyAuth(request);
+  if (auth instanceof NextResponse) return auth;
+
   try {
     const { taskId } = await params;
 
@@ -74,9 +78,12 @@ export async function GET(
 
 // DELETE /api/task/[taskId] - 删除指定任务
 export async function DELETE(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ taskId: string }> }
 ) {
+  const auth = await verifyAuth(request);
+  if (auth instanceof NextResponse) return auth;
+
   try {
     const { taskId } = await params;
 
