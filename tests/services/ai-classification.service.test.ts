@@ -7,14 +7,16 @@ vi.mock('@/lib/config', () => ({
 }));
 
 vi.mock('openai', () => {
-  return {
-    default: vi.fn().mockImplementation(() => ({
-      chat: {
-        completions: {
-          create: vi.fn(),
-        },
+  class MockOpenAI {
+    chat = {
+      completions: {
+        create: vi.fn(),
       },
-    })),
+    };
+  }
+
+  return {
+    default: MockOpenAI,
   };
 });
 

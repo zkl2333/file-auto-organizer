@@ -1,24 +1,33 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { FileInfoService, cleanupFileInfo } from '@/lib/services/file-info.service';
-import { FileMetadataService, FileValidatorService } from '@/lib/services/file-processing';
 
 // Mock file-processing module
-vi.mock('@/lib/services/file-processing', () => ({
-  FileReaderService: vi.fn().mockImplementation(() => ({
-    getPerformanceMetrics: vi.fn().mockReturnValue({
-      totalReads: 0,
-      totalBytes: 0,
-      avgReadTime: 0,
-    }),
-  })),
-  FileMetadataService: vi.fn().mockImplementation(() => ({
-    getFileDescription: vi.fn(),
-    cleanupExiftool: vi.fn().mockResolvedValue(undefined),
-  })),
-  FileValidatorService: vi.fn().mockImplementation(() => ({
-    validateFileForProcessing: vi.fn(),
-  })),
-}));
+vi.mock('@/lib/services/file-processing', () => {
+  class MockFileReaderService {
+    getPerformanceMetrics() {
+      return {
+        totalReads: 0,
+        totalBytes: 0,
+        avgReadTime: 0,
+      };
+    }
+  }
+
+  class MockFileMetadataService {
+    getFileDescription = vi.fn();
+    cleanupExiftool = vi.fn().mockResolvedValue(undefined);
+  }
+
+  class MockFileValidatorService {
+    validateFileForProcessing = vi.fn();
+  }
+
+  return {
+    FileReaderService: MockFileReaderService,
+    FileMetadataService: MockFileMetadataService,
+    FileValidatorService: MockFileValidatorService,
+  };
+});
 
 describe('FileInfoService', () => {
   let service: FileInfoService;
@@ -42,8 +51,10 @@ describe('FileInfoService', () => {
     });
 
     it('应该初始化所有子服务', () => {
-      expect(FileMetadataService).toHaveBeenCalled();
-      expect(FileValidatorService).toHaveBeenCalled();
+      const instance = FileInfoService.getInstance();
+      expect((instance as any).fileReader).toBeDefined();
+      expect((instance as any).fileMetadata).toBeDefined();
+      expect((instance as any).validator).toBeDefined();
     });
   });
 

@@ -71,8 +71,11 @@ export class FileMoveService {
         };
       }
 
-      // 验证目标目录路径和写入权限
+      // 确保目标目录存在
       const targetDir = path.dirname(targetPath);
+      this.ensureDir(targetDir);
+
+      // 验证目标目录路径和写入权限
       const targetDirValidation = this.validator.validateDirectoryWritePermission(targetDir);
       if (!targetDirValidation.valid) {
         logger.warn(
@@ -85,9 +88,6 @@ export class FileMoveService {
           error: targetDirValidation.error,
         };
       }
-
-      // 确保目标目录存在
-      this.ensureDir(targetDir);
 
       // 如果不允许覆盖，生成唯一文件名
       const finalPath = options.overwrite ? targetPath : this.generateUniqueFilename(targetPath);

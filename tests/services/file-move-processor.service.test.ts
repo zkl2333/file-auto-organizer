@@ -13,7 +13,15 @@ vi.mock('@/lib/logger', () => ({
 }));
 
 vi.mock('@/lib/services/file-move.service');
-vi.mock('@/lib/services/file-processing/file-validator.service');
+vi.mock('@/lib/services/file-processing/file-validator.service', () => {
+  class MockFileValidatorService {
+    validateSafePath = vi.fn().mockReturnValue({ valid: true });
+  }
+
+  return {
+    FileValidatorService: MockFileValidatorService,
+  };
+});
 
 describe('FileMoveProcessorService', () => {
   let service: FileMoveProcessorService;

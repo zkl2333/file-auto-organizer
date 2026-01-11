@@ -109,14 +109,14 @@ describe('FileMoveService', () => {
       expect(result.error).toContain('文件');
     });
 
-    it('应该拒绝移动到不存在的目标目录', async () => {
+    it('应该自动创建不存在的目标目录', async () => {
       const sourcePath = path.join(testSourceDir, 'file1.txt');
       const targetPath = path.join(testTargetDir, 'nonexistent', 'file1.txt');
 
       const result = await fileMoveService.moveFile(sourcePath, targetPath);
 
-      expect(result.success).toBe(false);
-      expect(result.error).toContain('目录');
+      expect(result.success).toBe(true);
+      expect(fs.existsSync(path.join(testTargetDir, 'nonexistent'))).toBe(true);
     });
   });
 
@@ -216,22 +216,20 @@ describe('FileMoveService', () => {
 
   describe('错误处理', () => {
     it('应该在移动失败时返回错误信息', async () => {
-      const sourcePath = path.join(testSourceDir, 'file1.txt');
-      // 设置为只读模拟权限错误
-      fs.chmodSync(sourcePath, 0o444);
+      const nonExistentSource = path.join(testSourceDir, 'nonexistent-file.txt');
+      const targetPath = path.join(testTargetDir, 'file.txt');
 
-      const result = await fileMoveService.moveFile(sourcePath, sourcePath);
+      const result = await fileMoveService.moveFile(nonExistentSource, targetPath);
 
       expect(result.success).toBe(false);
       expect(result.error).toBeDefined();
     });
 
     it('应该在复制失败时返回错误信息', async () => {
-      const sourcePath = path.join(testSourceDir, 'file1.txt');
-      // 移动到不存在的目录
-      const targetPath = path.join(testTargetDir, 'nonexistent', 'file1.txt');
+      const nonExistentSource = path.join(testSourceDir, 'nonexistent-file.txt');
+      const targetPath = path.join(testTargetDir, 'file.txt');
 
-      const result = await fileMoveService.copyFile(sourcePath, targetPath);
+      const result = await fileMoveService.copyFile(nonExistentSource, targetPath);
 
       expect(result.success).toBe(false);
       expect(result.error).toBeDefined();

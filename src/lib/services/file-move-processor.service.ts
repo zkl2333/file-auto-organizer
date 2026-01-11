@@ -114,7 +114,7 @@ export class FileMoveProcessorService {
     _taskId: string,
     processedFiles: ProcessedFile[],
     moveInfo: FileMoveInfo,
-    _dryRun: boolean
+    dryRun: boolean
   ): Promise<void> {
     const targetDir = path.join(ROOT_DIR, moveInfo.targetDir);
     const finalTargetPath = path.join(targetDir, moveInfo.fileName);
@@ -140,9 +140,12 @@ export class FileMoveProcessorService {
     }
 
     // 执行移动（FileMoveService 内部已有源文件和目录验证）
-    const moveResult = await this.fileMoveService.moveFile(moveInfo.sourcePath, finalTargetPath);
-    if (!moveResult.success) {
-      throw new Error(moveResult.error || '移动文件失败');
+    // Dry run 模式下不实际移动文件
+    if (!dryRun) {
+      const moveResult = await this.fileMoveService.moveFile(moveInfo.sourcePath, finalTargetPath);
+      if (!moveResult.success) {
+        throw new Error(moveResult.error || '移动文件失败');
+      }
     }
 
     // 更新状态为"成功"
