@@ -1,3 +1,5 @@
+import { authClient } from '@/lib/auth-client';
+
 export interface Stats {
   directories: {
     rootDir: string;
@@ -179,13 +181,69 @@ export class ApiError extends Error {
   }
 }
 
-// 通用请求处理函数
+// 刷新访问令牌
+async function refreshAccessToken(): Promise<boolean> {
+  try {
+    const response = await fetch('/api/auth/refresh', {
+      method: 'POST',
+    });
+
+    if (!response.ok) {
+      return false;
+    }
+
+    const data = await response.json();
+    const { accessToken } = data;
+
+    if (!accessToken) {
+      return false;
+    }
+
+    // 更新本地存储的访问令牌
+    authClient.setAccessToken(accessToken);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// 检查并刷新令牌（如果需要）
+async function ensureValidToken(): Promise<void> {
+  if (!authClient.isAuthenticated()) {
+    return;
+  }
+
+  if (authClient.isTokenExpiringSoon()) {
+    await refreshAccessToken();
+  }
+}
+
+// 通用请求处理函数（带令牌自动刷新）
 async function handleApiRequest<T>(
   request: Promise<Response>,
   errorMessage: string = '请求失败'
 ): Promise<T> {
   try {
-    const response = await request;
+    // 确保令牌有效
+    await ensureValidToken();
+
+    let response = await request;
+
+    // 处理 401 未授权错误（令牌过期或无效）
+    if (response.status === 401) {
+      // 尝试刷新令牌
+      const refreshSuccess = await refreshAccessToken();
+
+      if (refreshSuccess) {
+        // 重新执行原始请求
+        response = await request;
+      } else {
+        // 刷新失败，清除认证信息并跳转到登录页
+        authClient.logout();
+        window.location.href = '/login';
+        throw new ApiError('会话已过期，请重新登录', 401);
+      }
+    }
 
     if (!response.ok) {
       let errorData: unknown;
@@ -219,34 +277,70 @@ async function handleApiRequest<T>(
 
 export const api = {
   getStats: async (): Promise<Stats> => {
-    return handleApiRequest(fetch('/api/stats'), '获取系统统计信息失败');
+    return handleApiRequest(
+      fetch('/api/stats', {
+        headers: {
+          Authorization: `Bearer ${authClient.getAccessToken()}`,
+        },
+      }),
+      '获取系统统计信息失败'
+    );
   },
 
   getStatus: async (): Promise<TaskStatus> => {
-    return handleApiRequest(fetch('/api/status'), '获取任务状态失败');
+    return handleApiRequest(
+      fetch('/api/status', {
+        headers: {
+          Authorization: `Bearer ${authClient.getAccessToken()}`,
+        },
+      }),
+      '获取任务状态失败'
+    );
   },
 
   getLogs: async (limit: number = 200): Promise<{ logs: string[] }> => {
-    return handleApiRequest(fetch(`/api/logs?limit=${limit}`), '获取日志失败');
+    return handleApiRequest(
+      fetch(`/api/logs?limit=${limit}`, {
+        headers: {
+          Authorization: `Bearer ${authClient.getAccessToken()}`,
+        },
+      }),
+      '获取日志失败'
+    );
   },
 
   triggerTask: async (dryRun: boolean = false): Promise<TriggerResult> => {
     const url = dryRun ? '/api/trigger?dryRun=true' : '/api/trigger';
     return handleApiRequest(
-      fetch(url, { method: 'POST' }),
+      fetch(url, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${authClient.getAccessToken()}`,
+        },
+      }),
       dryRun ? '执行模拟任务失败' : '执行任务失败'
     );
   },
 
   getConfig: async (): Promise<ConfigData> => {
-    return handleApiRequest(fetch('/api/config'), '获取配置信息失败');
+    return handleApiRequest(
+      fetch('/api/config', {
+        headers: {
+          Authorization: `Bearer ${authClient.getAccessToken()}`,
+        },
+      }),
+      '获取配置信息失败'
+    );
   },
 
   updateConfig: async (yamlContent: string): Promise<ConfigResult> => {
     return handleApiRequest(
       fetch('/api/config', {
         method: 'PUT',
-        headers: { 'Content-Type': 'text/plain' },
+        headers: {
+          'Content-Type': 'text/plain',
+          Authorization: `Bearer ${authClient.getAccessToken()}`,
+        },
         body: yamlContent,
       }),
       '更新配置失败'
@@ -257,7 +351,10 @@ export const api = {
     return handleApiRequest(
       fetch('/api/config', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${authClient.getAccessToken()}`,
+        },
         body: JSON.stringify(config),
       }),
       '更新配置失败'
@@ -265,19 +362,48 @@ export const api = {
   },
 
   getUsageStats: async (range: 'today' | 'week' | 'month' | 'all' = 'all'): Promise<UsageStats> => {
-    return handleApiRequest(fetch(`/api/usage-stats?range=${range}`), '获取使用统计失败');
+    return handleApiRequest(
+      fetch(`/api/usage-stats?range=${range}`, {
+        headers: {
+          Authorization: `Bearer ${authClient.getAccessToken()}`,
+        },
+      }),
+      '获取使用统计失败'
+    );
   },
 
   getTaskHistory: async (): Promise<{ tasks: TaskRecord[] }> => {
-    return handleApiRequest(fetch('/api/task-history'), '获取任务历史失败');
+    return handleApiRequest(
+      fetch('/api/task-history', {
+        headers: {
+          Authorization: `Bearer ${authClient.getAccessToken()}`,
+        },
+      }),
+      '获取任务历史失败'
+    );
   },
 
   getTaskDetail: async (taskId: string): Promise<TaskRecord> => {
-    return handleApiRequest(fetch(`/api/task/${taskId}`), '获取任务详情失败');
+    return handleApiRequest(
+      fetch(`/api/task/${taskId}`, {
+        headers: {
+          Authorization: `Bearer ${authClient.getAccessToken()}`,
+        },
+      }),
+      '获取任务详情失败'
+    );
   },
 
   deleteTask: async (taskId: string): Promise<{ success: boolean; message: string }> => {
-    return handleApiRequest(fetch(`/api/task/${taskId}`, { method: 'DELETE' }), '删除任务失败');
+    return handleApiRequest(
+      fetch(`/api/task/${taskId}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${authClient.getAccessToken()}`,
+        },
+      }),
+      '删除任务失败'
+    );
   },
 
   deleteTasks: async (
@@ -286,7 +412,10 @@ export const api = {
     return handleApiRequest(
       fetch('/api/tasks', {
         method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${authClient.getAccessToken()}`,
+        },
         body: JSON.stringify({ taskIds }),
       }),
       '批量删除任务失败'
@@ -294,7 +423,14 @@ export const api = {
   },
 
   getTaskFiles: async (taskId: string): Promise<TaskFileList> => {
-    return handleApiRequest(fetch(`/api/task/${taskId}/files`), '获取任务文件列表失败');
+    return handleApiRequest(
+      fetch(`/api/task/${taskId}/files`, {
+        headers: {
+          Authorization: `Bearer ${authClient.getAccessToken()}`,
+        },
+      }),
+      '获取任务文件列表失败'
+    );
   },
 
   toggleCron: async (
@@ -303,10 +439,59 @@ export const api = {
     return handleApiRequest(
       fetch('/api/cron/toggle', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${authClient.getAccessToken()}`,
+        },
         body: JSON.stringify({ enabled }),
       }),
       '切换定时任务失败'
     );
+  },
+
+  logout: async (): Promise<{ success: boolean; message: string }> => {
+    try {
+      const response = await fetch('/api/auth/logout', {
+        method: 'POST',
+      });
+
+      if (!response.ok) {
+        throw new Error('登出失败');
+      }
+
+      const result = await response.json();
+      return result;
+    } catch (error) {
+      throw new ApiError(error instanceof Error ? error.message : '登出失败');
+    } finally {
+      // 无论服务端响应如何，都清除本地认证信息
+      authClient.logout();
+    }
+  },
+
+  login: async (
+    username: string,
+    password: string,
+    rememberMe: boolean = false
+  ): Promise<{ accessToken: string; refreshToken: string; user: { username: string } }> => {
+    try {
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password, rememberMe }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || '登录失败');
+      }
+
+      return await response.json();
+    } catch (error) {
+      if (error instanceof ApiError) {
+        throw error;
+      }
+      throw new ApiError(error instanceof Error ? error.message : '登录失败');
+    }
   },
 };
