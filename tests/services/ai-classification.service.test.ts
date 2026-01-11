@@ -6,6 +6,18 @@ vi.mock('@/lib/config', () => ({
   getConfig: vi.fn(),
 }));
 
+vi.mock('openai', () => {
+  return {
+    default: vi.fn().mockImplementation(() => ({
+      chat: {
+        completions: {
+          create: vi.fn(),
+        },
+      },
+    })),
+  };
+});
+
 describe('AIClassificationService', () => {
   let service: any;
   let mockOpenAIChat: any;
@@ -49,18 +61,13 @@ describe('AIClassificationService', () => {
 
     vi.mocked(getConfig).mockReturnValue(mockConfig as any);
 
-    // 直接创建 Mock 类
-    mockOpenAIChat = {
-      completions: {
-        create: vi.fn(),
-      },
-    };
-
-    // 创建服务实例并替换 OpenAI 实例
+    // 创建服务实例
     const { AIClassificationService: ServiceClass } =
       await import('@/lib/services/ai-classification.service');
     service = new ServiceClass();
-    (service as any).openai = mockOpenAIChat;
+
+    // 获取 OpenAI 实例的 chat.completions.create mock
+    mockOpenAIChat = (service as any).openai.chat;
   });
 
   describe('classifyBatch', () => {

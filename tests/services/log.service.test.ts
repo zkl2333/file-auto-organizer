@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import * as logService from '@/lib/services/log.service';
 import fs from 'node:fs';
+import path from 'node:path';
 import { getConfig } from '@/lib/config';
 
 // Mock dependencies
@@ -20,6 +21,7 @@ const mockedGetConfig = vi.mocked(getConfig);
 
 describe('LogService', () => {
   const testDir = '/test/logs';
+  const resolvedTestDir = path.resolve(testDir); // 考虑跨平台路径
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -42,7 +44,7 @@ describe('LogService', () => {
       const logs = await logService.readLogFiles(100);
 
       expect(logs).toEqual([]);
-      expect(mockedFs.existsSync).toHaveBeenCalledWith(testDir);
+      expect(mockedFs.existsSync).toHaveBeenCalledWith(resolvedTestDir);
     });
 
     it('应该返回空数组当日志目录为空时', async () => {
@@ -57,7 +59,7 @@ describe('LogService', () => {
     it('应该读取最新的日志文件', async () => {
       const logContent = 'log line 1\nlog line 2\nlog line 3';
       mockedFs.existsSync.mockReturnValue(true);
-      mockedFs.readdirSync.mockReturnValue(['app-2026-01-10.log', 'app-2026-01-11.log']);
+      mockedFs.readdirSync.mockReturnValue(['app-2026-01-10.log', 'app-2026-01-11.log'] as any);
       mockedFs.readFileSync.mockReturnValue(logContent);
 
       const logs = await logService.readLogFiles(100);
@@ -70,7 +72,7 @@ describe('LogService', () => {
     it('应该限制返回的行数', async () => {
       const manyLines = Array.from({ length: 200 }, (_, i) => `log line ${i}`).join('\n');
       mockedFs.existsSync.mockReturnValue(true);
-      mockedFs.readdirSync.mockReturnValue(['app.log']);
+      mockedFs.readdirSync.mockReturnValue(['app.log'] as any);
       mockedFs.readFileSync.mockReturnValue(manyLines);
 
       const logs = await logService.readLogFiles(10);
@@ -118,7 +120,7 @@ describe('LogService', () => {
     it('应该返回正确的文件信息', () => {
       const mockStats = { size: 1024, mtime: new Date() };
       mockedFs.existsSync.mockReturnValue(true);
-      mockedFs.readdirSync.mockReturnValue(['app-2026-01-11.log']);
+      mockedFs.readdirSync.mockReturnValue(['app-2026-01-11.log'] as any);
       mockedFs.statSync.mockReturnValue(mockStats as any);
       mockedFs.readFileSync.mockReturnValue('line1\nline2\nline3');
 
@@ -133,7 +135,11 @@ describe('LogService', () => {
     it('应该处理多个日志文件', () => {
       const mockStats = { size: 1024, mtime: new Date() };
       mockedFs.existsSync.mockReturnValue(true);
-      mockedFs.readdirSync.mockReturnValue(['app-2026-01-10.log', 'app-2026-01-11.log', 'app.log']);
+      mockedFs.readdirSync.mockReturnValue([
+        'app-2026-01-10.log',
+        'app-2026-01-11.log',
+        'app.log',
+      ] as any);
       mockedFs.statSync.mockReturnValue(mockStats as any);
       mockedFs.readFileSync.mockReturnValue('line1\nline2');
 

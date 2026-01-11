@@ -4,6 +4,13 @@ import { FileMetadataService, FileValidatorService } from '@/lib/services/file-p
 
 // Mock file-processing module
 vi.mock('@/lib/services/file-processing', () => ({
+  FileReaderService: vi.fn().mockImplementation(() => ({
+    getPerformanceMetrics: vi.fn().mockReturnValue({
+      totalReads: 0,
+      totalBytes: 0,
+      avgReadTime: 0,
+    }),
+  })),
   FileMetadataService: vi.fn().mockImplementation(() => ({
     getFileDescription: vi.fn(),
     cleanupExiftool: vi.fn().mockResolvedValue(undefined),
