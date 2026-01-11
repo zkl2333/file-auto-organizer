@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi, beforeAll, afterAll } from 'vitest';
 import { FileMoveService } from '@/lib/services/file-move.service';
-import { cleanupTestDirs, createTestDirs, TEST_TEMP_DIR } from '../setup';
+import { cleanupTestDirs, TEST_TEMP_DIR } from '../setup';
 import path from 'path';
 import fs from 'fs';
 
@@ -31,11 +31,6 @@ describe('FileMoveService', () => {
     fs.mkdirSync(testSourceDir, { recursive: true });
     fs.mkdirSync(testTargetDir, { recursive: true });
 
-    // 创建测试文件
-    fs.writeFileSync(path.join(testSourceDir, 'file1.txt'), 'content1');
-    fs.writeFileSync(path.join(testSourceDir, 'file2.txt'), 'content2');
-    fs.writeFileSync(path.join(testSourceDir, 'file3.jpg'), 'image data');
-
     // 创建目标目录
     fs.mkdirSync(path.join(testTargetDir, 'dir1'), { recursive: true });
     fs.mkdirSync(path.join(testTargetDir, 'dir2'), { recursive: true });
@@ -47,6 +42,11 @@ describe('FileMoveService', () => {
 
     // 创建服务实例
     fileMoveService = new FileMoveService();
+
+    // 每个测试前重新创建测试文件
+    fs.writeFileSync(path.join(testSourceDir, 'file1.txt'), 'content1');
+    fs.writeFileSync(path.join(testSourceDir, 'file2.txt'), 'content2');
+    fs.writeFileSync(path.join(testSourceDir, 'file3.jpg'), 'image data');
   });
 
   afterEach(() => {
@@ -95,7 +95,7 @@ describe('FileMoveService', () => {
 
       expect(result.success).toBe(true);
       expect(result.finalPath).not.toBe(targetPath);
-      expect(result.finalPath).toMatch(/file1\(\d+)\.txt$/);
+      expect(result.finalPath).toMatch(/file1\(\d+\)\.txt$/);
       expect(fs.existsSync(result.finalPath)).toBe(true);
     });
 

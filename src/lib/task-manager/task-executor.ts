@@ -12,6 +12,7 @@ import { FileInfoService } from '@/lib/services/file-info.service';
 import { FileMoveService } from '@/lib/services/file-move.service';
 import { AIProcessorService } from '@/lib/services/ai-processor.service';
 import { FileMoveProcessorService } from '@/lib/services/file-move-processor.service';
+import { FileStatusService } from '@/lib/services/file-status.service';
 import path from 'node:path';
 import fs from 'node:fs';
 
@@ -39,11 +40,11 @@ export class TaskExecutor {
     this.aiClassificationService = new AIClassificationService();
     this.fileInfoService = FileInfoService.getInstance();
     this.fileMoveService = new FileMoveService();
+    const fileStatusService = new FileStatusService();
     this.aiProcessorService = new AIProcessorService(
       this.aiClassificationService,
       this.fileMoveService,
-      // @ts-ignore - FileStatusService will be injected separately
-      null
+      fileStatusService
     );
     this.fileMoveProcessorService = new FileMoveProcessorService(this.fileMoveService);
   }

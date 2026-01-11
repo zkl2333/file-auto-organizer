@@ -41,7 +41,7 @@ export const TriggerView: React.FC = () => {
         icon: '/favicon.ico',
       });
     }
-    console.log(`任务 ${taskId} 已完成`);
+    // 任务完成已在 Notification 中提示，无需额外日志
   }, []);
 
   useEffect(() => {

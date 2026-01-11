@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi, beforeAll, afterAll } from 'vitest';
 import { FileScanService } from '@/lib/services/file-scan.service';
-import { cleanupTestDirs, createTestDirs, TEST_TEMP_DIR } from '../setup';
+import { cleanupTestDirs, TEST_TEMP_DIR } from '../setup';
 import path from 'path';
 import fs from 'fs';
 
@@ -77,9 +77,10 @@ describe('FileScanService', () => {
 
       expect(dirs).toBeInstanceOf(Array);
       expect(dirs.length).toBeGreaterThan(0);
-      expect(dirs).toContain('documents/');
-      expect(dirs).toContain('documents/work/');
-      expect(dirs).toContain('images/');
+      // 使用 path.sep 确保跨平台兼容
+      expect(dirs).toContain(`documents${path.sep}`);
+      expect(dirs).toContain(`documents${path.sep}work${path.sep}`);
+      expect(dirs).toContain(`images${path.sep}`);
     });
 
     it('应该扫描不存在的目录时返回空数组', () => {
@@ -91,7 +92,7 @@ describe('FileScanService', () => {
       const dirs = fileScanService.scanDirs(testRootDir);
 
       // 只扫描到深度3以内的目录
-      const subdirs = dirs.filter((d) => d.includes('/'));
+      const subdirs = dirs.filter((d) => d.includes(path.sep));
       expect(subdirs.length).toBeLessThanOrEqual(3);
     });
   });
@@ -102,17 +103,18 @@ describe('FileScanService', () => {
 
       expect(files).toBeInstanceOf(Array);
       expect(files.length).toBeGreaterThan(0);
-      expect(files).toContain('documents/file1.txt');
-      expect(files).toContain('documents/work/file2.txt');
-      expect(files).toContain('images/image1.jpg');
+      // 使用 path.sep 确保跨平台兼容
+      expect(files).toContain(`documents${path.sep}file1.txt`);
+      expect(files).toContain(`documents${path.sep}work${path.sep}file2.txt`);
+      expect(files).toContain(`images${path.sep}image1.jpg`);
     });
 
     it('应该只返回文件不包括目录', () => {
       const files = fileScanService.scanFiles(testRootDir);
 
-      // 文件路径不应该以 / 结尾
+      // 文件路径不应该以路径分隔符结尾
       files.forEach((file) => {
-        expect(file.endsWith('/')).toBe(false);
+        expect(file.endsWith(path.sep)).toBe(false);
       });
     });
 
@@ -138,7 +140,7 @@ describe('FileScanService', () => {
 
       // 文件名不应该包含路径分隔符
       files.forEach((file) => {
-        expect(path.sep).not.toBe(file);
+        expect(file).not.toContain(path.sep);
       });
     });
 

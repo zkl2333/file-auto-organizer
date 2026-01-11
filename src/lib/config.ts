@@ -1,5 +1,7 @@
 import { TaskConfig } from '@/types';
 import { CONFIG_DIR, DATA_DIR, ensureConfigDir, ensureDataDir } from './paths';
+import { logger } from './logger';
+import path from 'path';
 
 // 配置接口定义
 interface AppConfig {
@@ -84,7 +86,8 @@ export async function loadConfig(configPath?: string): Promise<AppConfig> {
     await ensureConfigDir();
     await ensureDataDir();
 
-    const path = configPath || process.env.CONFIG_PATH || CONFIG_DIR() + '/config.yaml';
+    const configFilePath =
+      configPath || process.env.CONFIG_PATH || path.join(CONFIG_DIR(), 'config.yaml');
 
     // 在服务端环境中，尝试读取配置文件
     const fs = await import('fs/promises');
@@ -93,7 +96,7 @@ export async function loadConfig(configPath?: string): Promise<AppConfig> {
     // 检查配置文件是否存在
     let configExists = false;
     try {
-      await fs.access(path);
+      await fs.access(configFilePath);
       configExists = true;
     } catch {
       configExists = false;
@@ -101,7 +104,7 @@ export async function loadConfig(configPath?: string): Promise<AppConfig> {
 
     // 如果配置文件不存在，创建默认配置文件
     if (!configExists) {
-      console.log(`配置文件 ${path} 不存在，正在创建默认配置文件...`);
+      logger.debug(`配置文件 ${configFilePath} 不存在，正在创建默认配置文件...`);
       const defaultYaml = yaml.dump(defaultConfig, {
         indent: 2,
         lineWidth: -1,
@@ -109,13 +112,13 @@ export async function loadConfig(configPath?: string): Promise<AppConfig> {
         forceQuotes: false,
       });
       const configWithComment = `# File Auto Organizer 配置文件\n# 首次运行自动生成，请根据需要修改配置\n\n${defaultYaml}`;
-      await fs.writeFile(path, configWithComment, 'utf-8');
-      console.log(`默认配置文件已创建: ${path}`);
+      await fs.writeFile(configFilePath, configWithComment, 'utf-8');
+      logger.debug(`默认配置文件已创建: ${configFilePath}`);
       currentConfig = defaultConfig;
     } else {
       // 读取并解析配置文件
       try {
-        const configContent = await fs.readFile(path, 'utf-8');
+        const configContent = await fs.readFile(configFilePath, 'utf-8');
         const userConfig = yaml.load(configContent) as Partial<AppConfig>;
 
         // 合并用户配置和默认配置

@@ -1,4 +1,4 @@
-import { beforeAll, afterAll, beforeEach } from 'vitest';
+import { beforeAll, afterAll } from 'vitest';
 import fs from 'fs';
 import path from 'path';
 
@@ -39,11 +39,12 @@ afterAll(() => {
   cleanupTestDirs();
 });
 
-beforeEach(() => {
-  // 每个测试前清理临时文件
-  cleanupTestDirs();
-  createTestDirs();
-});
+// 移除 beforeEach 中的清理逻辑，让每个测试文件自己管理测试目录
+// beforeEach(() => {
+//   // 每个测试前清理临时文件
+//   cleanupTestDirs();
+//   createTestDirs();
+// });
 
 // 导出测试工具函数
 export { TEST_TEMP_DIR, TEST_LOGS_DIR, cleanupTestDirs, createTestDirs };

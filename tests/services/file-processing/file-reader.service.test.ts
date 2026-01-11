@@ -217,7 +217,10 @@ describe('FileReaderService', () => {
 
     it('应该支持提前停止读取', () => {
       const textFile = path.join(testDir, 'stop.txt');
-      fs.writeFileSync(textFile, 'A'.repeat(10000));
+      // 创建包含多行的文件，每行足够长以确保换行符在不同块之间
+      const lineContent = 'A'.repeat(100);
+      const multiLineContent = Array(100).fill(lineContent).join('\n');
+      fs.writeFileSync(textFile, multiLineContent);
 
       let chunkCount = 0;
       const result = service.readFileStream(
@@ -226,12 +229,12 @@ describe('FileReaderService', () => {
           chunkCount++;
           return chunkCount < 3; // 读取3个块后停止
         },
-        { chunkSize: 100 }
+        { chunkSize: 1000 }
       );
 
       // 验证提前停止（chunkCount应该等于3，因为第3个块返回false后停止）
       expect(chunkCount).toBe(3);
-      expect(result.totalBytesRead).toBeLessThan(10000); // 应该没有读取全部内容
+      expect(result.totalBytesRead).toBeLessThan(multiLineContent.length); // 应该没有读取全部内容
     });
 
     it('应该拒绝非文本文件', () => {

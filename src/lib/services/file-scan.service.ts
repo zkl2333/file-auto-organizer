@@ -50,7 +50,7 @@ export class FileScanService {
           try {
             const stat = fs.statSync(fullPath);
             if (stat.isDirectory()) {
-              result.push(relPath + '/');
+              result.push(relPath + path.sep);
               if (depth < maxDepth) {
                 walk(fullPath, relPath, depth + 1);
               }
