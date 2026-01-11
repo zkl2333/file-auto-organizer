@@ -272,48 +272,9 @@ export function getTaskConfig(): TaskConfig {
   };
 }
 
-/**
- * 环境变量配置覆盖
- */
-export function applyEnvOverrides(): void {
-  const envOverrides: Partial<AppConfig> = {
-    openai: {
-      api_key: process.env.OPENAI_API_KEY || currentConfig.openai.api_key,
-      model: process.env.OPENAI_MODEL || currentConfig.openai.model,
-      base_url: process.env.OPENAI_BASE_URL || currentConfig.openai.base_url,
-    },
-    directories: {
-      root_dir: process.env.ROOT_DIR || currentConfig.directories.root_dir,
-      incoming_dir: process.env.INCOMING_DIR || currentConfig.directories.incoming_dir,
-    },
-    logging: {
-      level: process.env.LOG_LEVEL || currentConfig.logging.level,
-      dir: process.env.LOG_DIR || currentConfig.logging.dir,
-    },
-    auth: {
-      jwt_secret: process.env.JWT_SECRET || currentConfig.auth.jwt_secret,
-      jwt_refresh_secret: process.env.JWT_REFRESH_SECRET || currentConfig.auth.jwt_refresh_secret,
-      admin_username: process.env.ADMIN_USERNAME || currentConfig.auth.admin_username,
-      admin_password: process.env.ADMIN_PASSWORD || currentConfig.auth.admin_password,
-    },
-    scan: {
-      similarity_threshold: parseFloat(
-        process.env.SIMILARITY_THRESHOLD || String(currentConfig.scan.similarity_threshold)
-      ),
-      max_depth: parseInt(process.env.SCAN_MAX_DEPTH || String(currentConfig.scan.max_depth)),
-    },
-  };
-
-  updateConfig(envOverrides);
-}
-
 // 仅在服务端初始化时加载配置
 if (typeof window === 'undefined') {
-  loadConfig()
-    .then(() => {
-      applyEnvOverrides();
-    })
-    .catch((error) => {
-      console.error('初始化配置失败:', error);
-    });
+  loadConfig().catch((error) => {
+    console.error('初始化配置失败:', error);
+  });
 }

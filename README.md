@@ -46,11 +46,11 @@
    npm install
    ```
 
-2. **配置环境变量**
+2. **配置文件**
 
    ```bash
    cp config.yaml.example config.yaml
-   # 编辑配置文件
+   # 编辑配置文件，设置 OpenAI API Key 等配置
    ```
 
 3. **启动开发服务器**
@@ -207,6 +207,7 @@ docker-compose up -d
 
 - `NODE_ENV`: 运行环境（development/production）
 - `PORT`: 服务端口（默认 8080）
+- `CONFIG_PATH`: 配置文件路径（可选，默认为系统配置目录）
 
 ## 🤝 贡献
 
